@@ -187,10 +187,10 @@ namespace ReverseProxyServer
                         await outputStream.WriteAsync(buffer[..bytesRead], cancellationToken);
                         await fullPacket.WriteAsync(buffer[..bytesRead], cancellationToken);
 
-                        //Don't wait for all data to ne transmitted before logging
+                        //Don't wait for all data to be transmitted before logging
                         if (!inputStream.DataAvailable)
                         {
-                            Logger.LogDebug($"Full packet {fullPacket.Length}: {await convertMemoryStreamToString(fullPacket, cancellationToken)}");        
+                            Logger.LogDebug($"Full packet {fullPacket.Length} bytes{Environment.NewLine}{(await convertMemoryStreamToString(fullPacket, cancellationToken)).Trim()}");        
                             fullPacket.SetLength(0);
                             fullPacket.Position = 0;
                         }

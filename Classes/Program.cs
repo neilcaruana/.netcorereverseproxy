@@ -60,7 +60,7 @@ namespace ReverseProxyServer
                             Logger.SetLoggerType(newLoggerType);
                             break;
                         case ConsoleKey.S:
-                            Logger.LogInfo($"Active connections {reverseProxy.PendingConnectionsCount}");
+                            Logger.LogInfo($"Active connections: {reverseProxy.PendingConnectionsCount}");
                             break;
                         default:
                             Logger.LogInfo($"Press Ctrl+C to shutdown server or h for help");

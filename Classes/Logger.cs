@@ -32,7 +32,6 @@ public static class Logger
 
     public static void LogError(string errorMessage, Exception? exception = null)
     {
-        Console.ResetColor();
         Console.ForegroundColor = ConsoleColor.Red;
         if (exception != null)
             errorMessage += " " + exception.GetType().Name + " : " + exception.GetBaseException().Message;
@@ -41,13 +40,11 @@ public static class Logger
 
     public static void LogWarning(string warningMesssage)
     {
-        Console.ResetColor();
         Console.ForegroundColor = ConsoleColor.Yellow;
         logMessage(warningMesssage, logWarningKeyword);
     }
     public static void LogDebug(string debugMessage)
     {
-        Console.ResetColor();
         Console.ForegroundColor = ConsoleColor.Green;
         logMessage(debugMessage, logDebugKeyword);
     }
@@ -70,6 +67,7 @@ public static class Logger
             default:
                 throw new NotSupportedException($"LoggerType '{loggerType}' is not supported.");
         }
+        Console.ResetColor();
     }
 
     private static void logToFile(string entry)
