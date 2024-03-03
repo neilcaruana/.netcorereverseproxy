@@ -9,8 +9,8 @@ This project implements a simple yet powerful reverse proxy in .NET, designed to
 * Duplex Streaming: Real-time data processing with the ability to intercept and log data
 * Asynchronous I/O: Leverages C#'s async/await for efficient network operations.
 
-# Configuring Listening Ports
-Listening ports can be configured through the appsettings.json file under the ReverseProxyEndpoints section. Each entry within this section represents a separate proxy endpoint configuration, including its own listening port, target host, and target port etc.
+# Configuring Endpoints
+Listening endpoints can be configured through the appsettings.json file under the ReverseProxyEndpoints section. Each entry within this section represents a separate proxy endpoint configuration, including its own listening port, target host, and target port etc.
 
 Below is an example configuration for setting up multiple listening ports:
 
