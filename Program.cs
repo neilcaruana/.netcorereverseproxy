@@ -1,4 +1,5 @@
 ﻿using System.Runtime.InteropServices;
+using Microsoft.Extensions.Configuration;
 
 namespace ReverseProxyServer
 {
@@ -12,31 +13,12 @@ namespace ReverseProxyServer
                 CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
                 Logger.SetLoggerType(LoggerType.Console);
 
-                displaySplashScreen();
+                LoadSplashScreen();
                 Logger.LogInfo("Starting Reverse proxy server...");
 
-                //TO DO: Switch to config file
-                //TO DO: Add args to display help and other settings
-                List<ReverseProxyEndpointConfig> proxySettings = new();
-                ReverseProxyEndpointConfig endPointConfig1 = new(15000, //Proxy listening port 
-                                                                "localhost", //Target host name 
-                                                                443, //Target port
-                                                                @"", //Certificate path
-                                                                "", //Certifiate password
-                                                                ReverseProxyType.LogAndProxy);
-
-                ReverseProxyEndpointConfig endPointConfig2 = new ReverseProxyEndpointConfig(16000, 
-                                                                                             "localhost",
-                                                                                             80,
-                                                                                             @"",
-                                                                                             "",
-                                                                                             ReverseProxyType.LogAndProxy);
-
-                proxySettings.Add(endPointConfig1);
-                proxySettings.Add(endPointConfig2);
-                
                 //Start the reverse proxy with the specified setting
-                ReverseProxy reverseProxy = new(proxySettings, cancellationTokenSource);
+                var settings = LoadConfigSettings();
+                ReverseProxy reverseProxy = new(settings, cancellationTokenSource);
                 reverseProxy.Start();
 
                  //Loop and check for user actions
@@ -61,6 +43,7 @@ namespace ReverseProxyServer
                             break;
                         case ConsoleKey.S:
                             Logger.LogInfo($"Active connections: {reverseProxy.PendingConnectionsCount}");
+                            Logger.LogInfo($"Settings: {settings.ToString()}");
                             break;
                         default:
                             Logger.LogInfo($"Press Ctrl+C to shutdown server or h for help");
@@ -81,7 +64,7 @@ namespace ReverseProxyServer
             }
         }
 
-        static void displaySplashScreen()
+        static void LoadSplashScreen()
         {
            try
            {
@@ -130,6 +113,22 @@ namespace ReverseProxyServer
            {
                 Logger.LogError("Splashscreen error", ex);
            }
+        }
+
+        static List<ReverseProxyEndpointConfig> LoadConfigSettings()
+        {
+            var builder = new ConfigurationBuilder().SetBasePath(Directory.GetCurrentDirectory())
+                        .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+
+            IConfigurationRoot configuration = builder.Build();
+
+            List<ReverseProxyEndpointConfig> endpoints = new();
+            configuration.GetSection("ReverseProxyEndpoints").Bind(endpoints);
+
+            //Validate each loaded endpoint config
+            endpoints.ForEach(endpoint => endpoint.Validate());
+
+            return endpoints;
         }
     }
 }

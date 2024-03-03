@@ -1,40 +1,49 @@
 namespace ReverseProxyServer
 {
-    class ReverseProxyEndpointConfig
+    public record ReverseProxyEndpointConfig
     {
-        public int ListeningPort { get; set; }
-        public string TargetHost { get; set; }
-        public int TargetPort { get; set; }
-        public string CertificatePath { get; set; } = "";
-        public string CertificatePassword { get; set; } = "";
-        public ReverseProxyType ProxyType { get; set; } = ReverseProxyType.LogOnly;
-        
+        public int ListeningPort { get; init; }
+        public string TargetHost { get; init; } = string.Empty;
+        public int TargetPort { get; init; }
+        public string CertificatePath { get; init; } = string.Empty;
+        public string CertificatePassword { get; init; } = string.Empty;
+        public ReverseProxyType ProxyType { get; init; } = ReverseProxyType.LogOnly;
+            
         public ReverseProxyEndpointConfig(int listeningPort,
-                                          string targetHost,
-                                          int targetPort,
-                                          string certificatePath,
-                                          string certificatePassword,
-                                          ReverseProxyType proxyType)
+                                            string targetHost,
+                                            int targetPort,
+                                            string certificatePath,
+                                            string certificatePassword,
+                                            ReverseProxyType proxyType)
         {
-            if (listeningPort < 1 || listeningPort > 65535)
-                throw new Exception($"Invalid listening port specified {listeningPort}");
-            else 
-                ListeningPort = listeningPort;
-
-            if (targetPort < 0 || targetPort > 65535)
-                throw new Exception($"Invalid target port specified {targetPort}");
-            else 
-                TargetPort = targetPort;
-
-            if (!string.IsNullOrEmpty(certificatePath))
-                if (!Path.Exists(certificatePath))
-                    throw new Exception($"Invalid certificate path specified {certificatePath}");
-            else 
-                CertificatePath = certificatePath;
+        
 
             CertificatePassword = certificatePassword;
             TargetHost = targetHost;
             ProxyType = proxyType;
+            ListeningPort = listeningPort;
+            TargetPort = targetPort;
+            CertificatePath = certificatePath;
+
+            Validate();
+        }
+
+        public ReverseProxyEndpointConfig()
+        {
+            
+        }
+
+        public void Validate()
+        {
+            if (ListeningPort < 1 || ListeningPort > 65535)
+                throw new Exception($"Invalid listening port specified {ListeningPort}");
+
+            if (TargetPort < 0 || TargetPort > 65535)
+                throw new Exception($"Invalid target port specified {TargetPort}");
+
+            if (!string.IsNullOrEmpty(CertificatePath))
+                if (!Path.Exists(CertificatePath))
+                    throw new Exception($"Invalid certificate path specified {CertificatePath}");
         }
     }
 }
