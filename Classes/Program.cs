@@ -32,8 +32,8 @@ namespace ReverseProxyServer
                                                                                              "",
                                                                                              ReverseProxyType.LogAndProxy);
 
-                // proxySettings.Add(endPointConfig1);
-                // proxySettings.Add(endPointConfig2);
+                proxySettings.Add(endPointConfig1);
+                proxySettings.Add(endPointConfig2);
                 
                 //Start the reverse proxy with the specified setting
                 ReverseProxy reverseProxy = new(proxySettings, cancellationTokenSource);
