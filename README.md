@@ -12,7 +12,7 @@ This project implements a simple yet powerful reverse proxy in .NET, designed to
 # Configuring Listening Ports
 Listening ports can be configured through the appsettings.json file under the ReverseProxyEndpoints section. Each entry within this section represents a separate proxy endpoint configuration, including its own listening port, target host, and target port etc.
 
-Here is an example configuration for setting up multiple listening ports:
+Below is an example configuration for setting up multiple listening ports:
 
 ```
 {
