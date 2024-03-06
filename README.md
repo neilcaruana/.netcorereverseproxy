@@ -1,5 +1,5 @@
 # .NET Core Reverse Proxy
-This project implements a simple yet powerful reverse proxy in .NET, designed to forward requests from clients to other servers and return responses back to the clients. It supports both HTTP and HTTPS traffic, provides basic logging capabilities, and can be easily extended for more advanced scenarios such as load balancing, request modification, and more.
+This project implements a lightweight reverse proxy in .NET 8, designed to forward requests from clients to other servers and return responses back to the clients. It supports both HTTP and HTTPS traffic, provides basic logging capabilities, and can be easily extended for more advanced scenarios such as load balancing, request modification, and more.
 
 ## Features
 * HTTP and HTTPS Support: Forward HTTP and HTTPS requests transparently.
@@ -10,9 +10,9 @@ This project implements a simple yet powerful reverse proxy in .NET, designed to
 * Asynchronous I/O: Leverages C#'s async/await for efficient network operations.
 
 ## Configuring Endpoints
-Listening endpoints can be configured through the appsettings.json file under the ReverseProxyEndpoints section. Each entry within this section represents a separate proxy endpoint configuration, including its own listening port, target host, and target port etc.
+Listening endpoints can be configured through the appsettings.json file under the ReverseProxyEndpoints section. Each entry within this section represents a separate proxy endpoint configuration, including its own listening port ranges, target host, and target port etc.
 
-Below is an example configuration for setting up multiple listening ports:
+Below is an example configuration for setting up multiple listening endpoints:
 
 ```
 {
