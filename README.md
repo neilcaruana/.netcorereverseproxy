@@ -2,8 +2,8 @@
 This project implements a simple yet powerful reverse proxy in .NET, designed to forward requests from clients to other servers and return responses back to the clients. It supports both HTTP and HTTPS traffic, provides basic logging capabilities, and can be easily extended for more advanced scenarios such as load balancing, request modification, and more.
 
 ## Features
-* Support multiple listening ports: Allowing parallel forward requests to different target servers based on configuration.
 * HTTP and HTTPS Support: Forward HTTP and HTTPS requests transparently.
+* Support for a range of listening ports: Allowing parallel forward requests to different target servers based on configuration.
 * Logging: Log requests and responses for debugging and monitoring purposes.
 * Cancellation Support: Gracefully handle shutdown requests with proper cleanup.
 * Duplex Streaming: Real-time data processing with the ability to intercept and log data
@@ -18,7 +18,10 @@ Below is an example configuration for setting up multiple listening ports:
 {
   "ReverseProxyEndpoints": [
     {
-      "ListeningPort": 8080,
+      "ListeningPortRange": {
+        "Start": 8080,
+        "End": 8085
+      },
       "TargetHost": "example.com",
       "TargetPort": 80,
       "CertificatePath": "",
@@ -26,7 +29,10 @@ Below is an example configuration for setting up multiple listening ports:
       "ProxyType": "LogOnly"
     },
     {
-      "ListeningPort": 8081,
+      "ListeningPortRange": {
+        "Start": 8086,
+        "End": 8086
+      },
       "TargetHost": "anotherexample.com",
       "TargetPort": 80,
       "CertificatePath": "",

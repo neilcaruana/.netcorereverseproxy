@@ -1,15 +1,20 @@
 namespace ReverseProxyServer
 {
+    public record PortRange
+    {
+        public int Start { get; init; }
+        public int End { get; init; }
+    }
     public record ReverseProxyEndpointConfig
     {
-        public int ListeningPort { get; init; }
+        public PortRange ListeningPortRange { get; init; }
         public string TargetHost { get; init; } = string.Empty;
         public int TargetPort { get; init; }
         public string CertificatePath { get; init; } = string.Empty;
         public string CertificatePassword { get; init; } = string.Empty;
         public ReverseProxyType ProxyType { get; init; } = ReverseProxyType.LogOnly;
             
-        public ReverseProxyEndpointConfig(int listeningPort,
+        public ReverseProxyEndpointConfig(PortRange listeningPortRange,
                                             string targetHost,
                                             int targetPort,
                                             string certificatePath,
@@ -21,7 +26,7 @@ namespace ReverseProxyServer
             CertificatePassword = certificatePassword;
             TargetHost = targetHost;
             ProxyType = proxyType;
-            ListeningPort = listeningPort;
+            ListeningPortRange = listeningPortRange;
             TargetPort = targetPort;
             CertificatePath = certificatePath;
 
@@ -35,8 +40,12 @@ namespace ReverseProxyServer
 
         public void Validate()
         {
-            if (ListeningPort < 1 || ListeningPort > 65535)
-                throw new Exception($"Invalid listening port specified {ListeningPort}");
+            if (ListeningPortRange.Start < 1 || ListeningPortRange.Start > 65535 ||
+                ListeningPortRange.End < 1 || ListeningPortRange.End > 65535 ||
+                ListeningPortRange.Start > ListeningPortRange.End)
+            {
+                throw new Exception($"Invalid listening port range specified {ListeningPortRange.Start}-{ListeningPortRange.End}");
+            }
 
             if (TargetPort < 0 || TargetPort > 65535)
                 throw new Exception($"Invalid target port specified {TargetPort}");

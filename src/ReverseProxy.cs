@@ -31,9 +31,13 @@ namespace ReverseProxyServer
         }
         public void Start()
         {
-            foreach (ReverseProxyEndpointConfig setting in settings)
+            foreach (ReverseProxyEndpointConfig endpointSetting in settings)
             {
-                listeners.Add(CreateEndpointListener(setting, cancellationTokenSource.Token));
+                //Create listener for every port in listening ports range
+                for (int port = endpointSetting.ListeningPortRange.Start; port <= endpointSetting.ListeningPortRange.End; port++)
+                {
+                    listeners.Add(CreateEndpointListener(port, endpointSetting, cancellationTokenSource.Token));
+                }
             }
         }
         public async Task Stop()
@@ -49,15 +53,15 @@ namespace ReverseProxyServer
 
             //TODO: handling of timeouts
         }
-        private async Task CreateEndpointListener(ReverseProxyEndpointConfig endpointSetting, CancellationToken cancellationToken)
+        private async Task CreateEndpointListener(int port, ReverseProxyEndpointConfig endpointSetting, CancellationToken cancellationToken)
         {
             TcpListener? listener = null;
             try
             {
-                listener = new(IPAddress.Any, endpointSetting.ListeningPort);
+                listener = new(IPAddress.Any, port);
                 listener.Start();
                 
-                Logger.LogInfo($"Reverse Proxy ({endpointSetting.ProxyType}) listening on {IPAddress.Any.ToString()} port {endpointSetting.ListeningPort}");
+                Logger.LogInfo($"Reverse Proxy ({endpointSetting.ProxyType}) listening on {IPAddress.Any.ToString()} port {port}");
                 //Check for incoming connections until user needs to stop server
                 while (!cancellationToken.IsCancellationRequested) 
                 {
@@ -99,7 +103,7 @@ namespace ReverseProxyServer
             {
                 //Stop the listener since the user wants to stop the server
                 listener?.Stop(); 
-                Logger.LogInfo($"Stopped listening on port {endpointSetting.ListeningPort}.. Thread Id: {Thread.CurrentThread.ManagedThreadId}");
+                Logger.LogInfo($"Stopped listening on port {port}.. Thread Id: {Thread.CurrentThread.ManagedThreadId}");
             }
         }
         private async Task ProxyNormalTraffic(TcpClient incomingTcpClient, ReverseProxyEndpointConfig endpointSetting, CancellationToken cancellationToken)
