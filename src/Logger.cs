@@ -1,77 +1,81 @@
 ﻿using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace ReverseProxyServer;
 
-public static class Logger
+public class Logger : ILogger
 {
-    private static LoggerType loggerType = LoggerType.ConsoleAndFile;
+    private LoggerType loggerType = LoggerType.ConsoleAndFile;
+    private LoggerLevel loggerLevel = LoggerLevel.Debug;
+    private string logFilePath {get {
+        return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "connections.log");
+    }}
 
-    public static LoggerType GetLoggerType()
+    public LoggerType LoggerType
     {
-        return loggerType;
+        get => loggerType;
+        set => loggerType = value;
+    }
+    public LoggerLevel LoggerLevel
+    {
+        get => loggerLevel;
+        set => loggerLevel = value;
     }
 
-    public static void SetLoggerType(LoggerType value)
-    {
-        loggerType = value;
-    }
+    private string LogDatePrefix => DateTime.Now.ToString("dd-MM-yyyy HH:mm:ss.fff", CultureInfo.InvariantCulture);
+    private const string LogDelimiter = "\t";
+    private readonly object fileLock = new();
 
-    private static string logDatePrefix => DateTime.Now.ToString("dd-MM-yyyy HH:mm:ss.fff", CultureInfo.InvariantCulture);
-    private const string logDelimiter = "\t";
-    private const string logInfoKeyword = "Info";
-    private const string logErrorKeyword = "Error";
-    private const string logWarningKeyword = "Warning";
-    private const string logDebugKeyword = "Debug";
-    private const string logFilename = "connections.log";
-
-     public static void LogInfo(string message)
+    public Logger(LoggerType loggerType, LoggerLevel loggerLevel)
     {
-        Console.ResetColor();
-        logMessage(message, logInfoKeyword);
+        this.loggerType = loggerType;
+        this.loggerLevel = loggerLevel;
     }
-
-    public static void LogError(string errorMessage, Exception? exception = null)
+    public Task LogInfoAsync(string message) => LogAsync(message, LoggerLevel.Info);
+    public Task LogErrorAsync(string errorMessage, Exception? exception = null) =>
+        LogAsync($"{errorMessage} {(exception != null ? $"{exception.GetType().Name} : {exception.GetBaseException().Message}" : "")}", LoggerLevel.Error, ConsoleColor.Red);
+    public Task LogWarningAsync(string warningMessage) => LogAsync(warningMessage, LoggerLevel.Warning, ConsoleColor.Yellow);
+    public Task LogDebugAsync(string debugMessage) => LogAsync(debugMessage, LoggerLevel.Debug, ConsoleColor.Green);
+    private async Task LogAsync(string entry, LoggerLevel messageLoggerLevel, ConsoleColor? color = null)
     {
-        Console.ForegroundColor = ConsoleColor.Red;
-        if (exception != null)
-            errorMessage += " " + exception.GetType().Name + " : " + exception.GetBaseException().Message;
-        logMessage(errorMessage, logErrorKeyword);
-    }
-
-    public static void LogWarning(string warningMesssage)
-    {
-        Console.ForegroundColor = ConsoleColor.Yellow;
-        logMessage(warningMesssage, logWarningKeyword);
-    }
-    public static void LogDebug(string debugMessage)
-    {
-        Console.ForegroundColor = ConsoleColor.Green;
-        logMessage(debugMessage, logDebugKeyword);
-    }
-
-    private static void logMessage(string entry, string keyword)
-    {
-        string newEntry = $"{logDatePrefix}{logDelimiter}{keyword}{logDelimiter}{entry}";
-        switch (loggerType)
+        if (messageLoggerLevel <= loggerLevel)
         {
-            case LoggerType.Console:
-                Console.WriteLine(newEntry);
-                break;
-            case LoggerType.File:
-                logToFile(newEntry);
-                break;
-            case LoggerType.ConsoleAndFile:
-                Console.WriteLine(newEntry);
-                logToFile(newEntry);
-                break;
-            default:
-                throw new NotSupportedException($"LoggerType '{loggerType}' is not supported.");
+            StringBuilder newEntry = new StringBuilder()
+                .Append($"[{Thread.GetCurrentProcessorId()}][{Thread.CurrentThread.ManagedThreadId}]")
+                .Append(LogDelimiter).Append(LogDatePrefix)
+                .Append(LogDelimiter).Append(messageLoggerLevel.ToString())
+                .Append(LogDelimiter).Append(entry);
+
+            if (color.HasValue)
+            {
+                Console.ForegroundColor = color.Value;
+            }
+
+            switch (loggerType)
+            {
+                case LoggerType.Console:
+                    Console.WriteLine(newEntry);
+                    break;
+                case LoggerType.File:
+                    await LogToFileAsync(newEntry.ToString());
+                    break;
+                case LoggerType.ConsoleAndFile:
+                    Console.WriteLine(newEntry);
+                    await LogToFileAsync(newEntry.ToString());
+                    break;
+                default:
+                    throw new NotSupportedException($"LoggerType '{loggerType}' is not supported.");
+            }
+            Console.ResetColor();
         }
-        Console.ResetColor();
     }
 
-    private static void logToFile(string entry)
+    private async Task LogToFileAsync(string entry)
     {
-        File.AppendAllTextAsync(logFilename, entry + Environment.NewLine);
+        lock (fileLock)
+        {
+            File.AppendAllTextAsync(logFilePath, entry + Environment.NewLine);
+        }
     }
 }

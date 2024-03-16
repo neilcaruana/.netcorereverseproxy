@@ -13,3 +13,11 @@ public enum LoggerType
     File,
     ConsoleAndFile
 }
+
+public enum LoggerLevel
+{
+    Info = 0,
+    Error = 1,
+    Warning = 2,
+    Debug = 3
+}

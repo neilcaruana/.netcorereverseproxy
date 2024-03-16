@@ -5,16 +5,16 @@ namespace ReverseProxyServer
 {
     public class Program
     {
-        static void Main(string[] args)
+        static Logger logger = new Logger(LoggerType.ConsoleAndFile, LoggerLevel.Debug);
+        static async Task Main(string[] args)
         {
             try
             {
                 Console.TreatControlCAsInput = true;
-                CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
-                Logger.SetLoggerType(LoggerType.Console);
-
+                CancellationTokenSource cancellationTokenSource = new();
+                
                 LoadSplashScreen();
-                Logger.LogInfo("Starting Reverse proxy server...");
+                await logger.LogInfoAsync("Starting Reverse proxy server...");
 
                 //Start the reverse proxy with the specified setting
                 var settings = LoadConfigSettings();
@@ -29,42 +29,40 @@ namespace ReverseProxyServer
                     {
                         //Handle Ctrl+C
                         case ConsoleKey.C when keyPressedInfo.Modifiers == ConsoleModifiers.Control:
-                            Logger.LogInfo("Caught signal interrupt: shutting down server...");
+                            await logger.LogInfoAsync("Caught signal interrupt: shutting down server...");
                             cancellationTokenSource.Cancel();
                             break;
                         case ConsoleKey.L:
-                            Logger.LogInfo($"Change log level to ({string.Join(",", Enum.GetNames(typeof(LoggerType)))}");
+                            await logger.LogInfoAsync($"Change log level to ({string.Join(",", Enum.GetNames(typeof(LoggerType)))}");
                             LoggerType newLoggerType;
                             while (!Enum.TryParse(Console.ReadLine(), true, out newLoggerType))
                             {   
-                                Logger.LogWarning("Invalid entry");
+                                await logger.LogWarningAsync("Invalid entry");
                             }
-                            Logger.SetLoggerType(newLoggerType);
+                            logger.LoggerType = newLoggerType;
                             break;
                         case ConsoleKey.S:
-                            Logger.LogInfo($"Active connections: {reverseProxy.PendingConnectionsCount}");
-                            Logger.LogInfo($"Settings: {settings.ToString()}");
+                            await logger.LogInfoAsync($"Active connections: {reverseProxy.PendingConnectionsCount}");
                             break;
                         default:
-                            Logger.LogInfo($"Press Ctrl+C to shutdown server or h for help");
+                            await logger.LogInfoAsync($"Press Ctrl+C to shutdown server or h for help");
                             break;
                     }
                 } 
                 while (!cancellationTokenSource.IsCancellationRequested);
 
-                Logger.LogWarning($"Stopping Reverse proxy server... finishing pending tasks {reverseProxy.PendingConnectionsCount}");
+                await logger.LogWarningAsync($"Stopping Reverse proxy server... finishing pending tasks {reverseProxy.PendingConnectionsCount}");
                 reverseProxy.Stop().Wait(TimeSpan.FromSeconds(10));
-                Logger.LogInfo($"Stopped Reverse proxy server..." + (reverseProxy.PendingConnectionsCount > 0 ? $" Some tasks did not finish {reverseProxy.PendingConnectionsCount}" : ""));
+                await logger.LogInfoAsync($"Stopped Reverse proxy server..." + (reverseProxy.PendingConnectionsCount > 0 ? $" Some tasks did not finish {reverseProxy.PendingConnectionsCount}" : ""));
             }
             //TODO: handling of timeouts
             catch (Exception ex)
             {
-                Logger.LogError("General failure", ex);
-                Console.ResetColor();
+                await logger.LogErrorAsync("General failure", ex);
             }
         }
 
-        static void LoadSplashScreen()
+        static async void LoadSplashScreen()
         {
            try
            {
@@ -111,7 +109,7 @@ namespace ReverseProxyServer
            }
            catch (Exception ex)
            {
-                Logger.LogError("Splashscreen error", ex);
+                await logger.LogErrorAsync("Splashscreen error", ex);
            }
         }
 

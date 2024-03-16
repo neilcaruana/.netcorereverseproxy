@@ -1,5 +1,5 @@
 # .NET Core Reverse Proxy
-This project implements a lightweight reverse proxy in .NET 8, designed to forward requests from clients to other servers and return responses back to the clients. It supports both HTTP and HTTPS traffic, provides basic logging capabilities, and can be easily extended for more advanced scenarios such as load balancing, request modification, and more.
+This project implements a lightweight reverse proxy in .NET 8, designed to proxy requests and can also act as a simple honey pot to listen on ports and log the request only. It supports both HTTP and HTTPS traffic, provides configurable logging capabilities per endpoint, and can be easily extended for more advanced scenarios such as load balancing, request modification, and more.
 
 ## Features
 * HTTP and HTTPS Support: Forward HTTP and HTTPS requests transparently.
@@ -10,7 +10,7 @@ This project implements a lightweight reverse proxy in .NET 8, designed to forwa
 * Asynchronous I/O: Leverages C#'s async/await for efficient network operations.
 
 ## Configuring Endpoints
-Listening endpoints can be configured through the appsettings.json file under the ReverseProxyEndpoints section. Each entry within this section represents a separate proxy endpoint configuration, including its own listening port ranges, target host, and target port etc.
+Listening endpoints can be configured through the appsettings.json file under the ReverseProxyEndpoints section. Each entry within this section represents a separate proxy endpoint configuration, including its own listening port ranges, target host, target port and log levels etc.
 
 Below is an example configuration for setting up multiple listening endpoints:
 
@@ -18,26 +18,37 @@ Below is an example configuration for setting up multiple listening endpoints:
 {
   "ReverseProxyEndpoints": [
     {
+      "ProxyType": "LogAndProxy",
       "ListeningPortRange": {
-        "Start": 8080,
-        "End": 8085
+        "Start": 80,
+        "End": 80
       },
-      "TargetHost": "example.com",
-      "TargetPort": 80,
-      "CertificatePath": "",
-      "CertificatePassword": "",
-      "ProxyType": "LogOnly"
+      "TargetHost": "localhost",
+      "TargetPort": 81,
+      "LoggerType": "ConsoleAndFile",
+      "LoggerLevel": "Warning"
     },
     {
+      "ProxyType": "LogAndProxy",
       "ListeningPortRange": {
-        "Start": 8086,
-        "End": 8086
+        "Start": 443,
+        "End": 443
       },
-      "TargetHost": "anotherexample.com",
-      "TargetPort": 80,
-      "CertificatePath": "",
-      "CertificatePassword": "",
-      "ProxyType": "LogAndProxy"
+      "TargetHost": "localhost",
+      "TargetPort": 444,
+      "LoggerType": "ConsoleAndFile",
+      "LoggerLevel": "Warning"
+    },
+    {
+      "ProxyType": "LogOnly",
+      "ListeningPortRange": {
+        "Start": 1,
+        "End": 79
+      },
+      "TargetHost": "",
+      "TargetPort": 0,
+      "LoggerType": "ConsoleAndFile",
+      "LoggerLevel": "Debug"
     }
   ]
 }
