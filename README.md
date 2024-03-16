@@ -1,5 +1,5 @@
 # .NET Core Reverse Proxy
-This project implements a lightweight reverse proxy in .NET 8, designed to proxy requests and can also act as a simple honey pot to listen on ports and log the request only. It supports both HTTP and HTTPS traffic, provides configurable logging capabilities per endpoint, and can be easily extended for more advanced scenarios such as load balancing, request modification, and more.
+This project implements a lightweight reverse proxy in .NET 8, designed to proxy requests and can also act as a simple honeypot to listen on port ranges and log the request only. It supports both HTTP and HTTPS traffic, provides configurable logging capabilities per endpoint, and can be easily extended for more advanced scenarios such as load balancing, request modification, and more.
 
 ## Features
 * HTTP and HTTPS Support: Forward HTTP and HTTPS requests transparently.
