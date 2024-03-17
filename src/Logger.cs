@@ -8,6 +8,11 @@ public class Logger : ILogger
 {
     private LoggerType loggerType = LoggerType.ConsoleAndFile;
     private LoggerLevel loggerLevel = LoggerLevel.Debug;
+    private string logDatePrefix => DateTime.Now.ToString("dd-MM-yyyy HH:mm:ss.fff", CultureInfo.InvariantCulture);
+    private const string logDelimiter = "  ";
+    private readonly object logLock = new();
+    private readonly string logPrefix = "";
+
     private string logFilePath {get {
         return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "connections.log");
     }}
@@ -23,14 +28,11 @@ public class Logger : ILogger
         set => loggerLevel = value;
     }
 
-    private string LogDatePrefix => DateTime.Now.ToString("dd-MM-yyyy HH:mm:ss.fff", CultureInfo.InvariantCulture);
-    private const string LogDelimiter = "\t";
-    private readonly object fileLock = new();
-
-    public Logger(LoggerType loggerType, LoggerLevel loggerLevel)
+    public Logger(LoggerType loggerType, LoggerLevel loggerLevel, string logPrefix = "")
     {
         this.loggerType = loggerType;
         this.loggerLevel = loggerLevel;
+        this.logPrefix = logPrefix;
     }
     public Task LogInfoAsync(string message) => LogAsync(message, LoggerLevel.Info);
     public Task LogErrorAsync(string errorMessage, Exception? exception = null) =>
@@ -42,10 +44,10 @@ public class Logger : ILogger
         if (messageLoggerLevel <= loggerLevel)
         {
             StringBuilder newEntry = new StringBuilder()
-                .Append($"[{Thread.GetCurrentProcessorId()}][{Thread.CurrentThread.ManagedThreadId}]")
-                .Append(LogDelimiter).Append(LogDatePrefix)
-                .Append(LogDelimiter).Append(messageLoggerLevel.ToString())
-                .Append(LogDelimiter).Append(entry);
+                .Append($"[{logPrefix}]")
+                .Append(logDelimiter).Append(logDatePrefix)
+                .Append(logDelimiter).Append(messageLoggerLevel.ToString())
+                .Append(logDelimiter).Append(entry);
 
             if (color.HasValue)
             {
@@ -73,7 +75,7 @@ public class Logger : ILogger
 
     private async Task LogToFileAsync(string entry)
     {
-        lock (fileLock)
+        lock (logLock)
         {
             File.AppendAllTextAsync(logFilePath, entry + Environment.NewLine);
         }

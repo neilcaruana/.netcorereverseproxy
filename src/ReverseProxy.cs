@@ -14,9 +14,9 @@ namespace ReverseProxyServer
     {
         public int PendingConnectionsCount => pendingConnections.Count;
         private readonly int bufferSize = 4096;
-        private ConcurrentBag<Task> pendingConnections = new();
+        private ConcurrentBag<Task> pendingConnections = [];
         private readonly List<ReverseProxyEndpointConfig> settings;
-        private readonly List<Task> listeners = new();
+        private readonly List<Task> listeners = [];
         private readonly CancellationTokenSource cancellationTokenSource = new();
         public ReverseProxy(List<ReverseProxyEndpointConfig> reverseProxySettings, CancellationTokenSource cancellationTokenSource)
         {
@@ -56,7 +56,7 @@ namespace ReverseProxyServer
         private async Task CreateEndpointListener(int port, ReverseProxyEndpointConfig endpointSetting, CancellationToken cancellationToken)
         {
             TcpListener? listener = null;
-            Logger endpointLogger = new(endpointSetting.LoggerType, endpointSetting.LoggerLevel);
+            Logger endpointLogger = new(endpointSetting.LoggerType, endpointSetting.LoggerLevel, endpointSetting.ProxyType.ToString());
             try
             {
                 listener = new(IPAddress.Any, port);
@@ -127,12 +127,11 @@ namespace ReverseProxyServer
                                         {
                                             //If actual data was received proceed with logging
                                             StringBuilder rawData = await convertMemoryStreamToString(tempMemory, cancellationToken);
-                                            
-                                            await endpointLogger.LogDebugAsync($"Log only endpoint. Request size [{tempMemory.Length} bytes] - Raw data received: {rawData.ToString().Trim()}");
+                                            await endpointLogger.LogDebugAsync($"Connection dropped. Request size [{tempMemory.Length} bytes] - Raw data received;{Environment.NewLine}{rawData.ToString().Trim()}");
                                             rawData.Clear();
                                         }
                                         else
-                                            await endpointLogger.LogDebugAsync($"Log only endpoint. No data received");
+                                            await endpointLogger.LogDebugAsync($"Connection dropped. No data received");
                                         
                                         return;
                                     }
@@ -266,7 +265,7 @@ namespace ReverseProxyServer
 
         private void cleanCompletedConnections()
         {
-            ConcurrentBag<Task> cleanedConnections = new ConcurrentBag<Task>();
+            ConcurrentBag<Task> cleanedConnections = [];
             //Atomic operation to swap pending connections to empty cleaned connections, returning the current values
             ConcurrentBag<Task> tempPendingConnections = Interlocked.Exchange(ref pendingConnections, cleanedConnections);
 

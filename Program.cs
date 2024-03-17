@@ -5,7 +5,7 @@ namespace ReverseProxyServer
 {
     public class Program
     {
-        static Logger logger = new Logger(LoggerType.ConsoleAndFile, LoggerLevel.Debug);
+        static Logger logger = new Logger(LoggerType.ConsoleAndFile, LoggerLevel.Debug, "Main");
         static async Task Main(string[] args)
         {
             try
@@ -15,6 +15,7 @@ namespace ReverseProxyServer
                 
                 LoadSplashScreen();
                 await logger.LogInfoAsync("Starting Reverse proxy server...");
+                await logger.LogInfoAsync($"{Environment.OSVersion} {RuntimeInformation.FrameworkDescription}");
 
                 //Start the reverse proxy with the specified setting
                 var settings = LoadConfigSettings();
@@ -120,7 +121,7 @@ namespace ReverseProxyServer
 
             IConfigurationRoot configuration = builder.Build();
 
-            List<ReverseProxyEndpointConfig> endpoints = new();
+            List<ReverseProxyEndpointConfig> endpoints = [];
             configuration.GetSection("ReverseProxyEndpoints").Bind(endpoints);
 
             //Validate each loaded endpoint config
