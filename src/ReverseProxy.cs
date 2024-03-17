@@ -62,14 +62,19 @@ namespace ReverseProxyServer
                 listener = new(IPAddress.Any, port);
                 listener.Start();
                 
-                await endpointLogger.LogInfoAsync($"Reverse Proxy ({endpointSetting.ProxyType}) listening on {IPAddress.Any.ToString()} port {port} -> {endpointSetting.TargetHost}:{endpointSetting.TargetPort}");
+                string endpointLog = $"Reverse Proxy ({endpointSetting.ProxyType}) listening on {IPAddress.Any} port {port}";
+                if (endpointSetting.ProxyType == ReverseProxyType.LogAndProxy || endpointSetting.ProxyType == ReverseProxyType.ProxyOnly)
+                    endpointLog += $" -> {endpointSetting.TargetHost}:{endpointSetting.TargetPort}";
+
+                await endpointLogger.LogInfoAsync(endpointLog);
+
                 //Check for incoming connections until user needs to stop server
                 while (!cancellationToken.IsCancellationRequested) 
                 {
                     var tcpClientTask = await listener.AcceptTcpClientAsync(cancellationToken);
                                         
                     //Fire and forget processing of actual traffic, this will not block the current thread from processing new connections
-                    Task newConnection = ProxyNormalTraffic(tcpClientTask, endpointSetting, endpointLogger, cancellationToken);
+                    Task newConnection = ProxyTraffic(tcpClientTask, endpointSetting, endpointLogger, cancellationToken);
                     
                     //Add connections to a thread safe list to monitor and gracefully wait and close when exiting
                     pendingConnections.Add(newConnection);
@@ -97,8 +102,8 @@ namespace ReverseProxyServer
                 await endpointLogger.LogInfoAsync($"Stopped listening on port {port}");
             }
         }
-        private async Task ProxyNormalTraffic(TcpClient incomingTcpClient, ReverseProxyEndpointConfig endpointSetting,
-                                              Logger endpointLogger, CancellationToken cancellationToken)
+        private async Task ProxyTraffic(TcpClient incomingTcpClient, ReverseProxyEndpointConfig endpointSetting,
+                                        Logger endpointLogger, CancellationToken cancellationToken)
         {
             try
             {   
@@ -114,14 +119,23 @@ namespace ReverseProxyServer
                                 if (endpointSetting.ProxyType == ReverseProxyType.LogOnly)
                                 {
                                     //Log data only and close connection
-                                    MemoryStream tempMemory = await convertNetworkStreamIntoMemory(incomingDataStream, cancellationToken);
-
-                                    await endpointLogger.LogInfoAsync($"Logging request size {tempMemory.Length} bytes and closing connection");
-                                    await endpointLogger.LogDebugAsync($"Raw data received: {await convertMemoryStreamToString(tempMemory, cancellationToken)}");
-
-                                    await tempMemory.DisposeAsync();
-                                    incomingTcpClient.Close();
-                                    return;
+                                    using (MemoryStream tempMemory = await convertNetworkStreamIntoMemory(incomingDataStream, cancellationToken))
+                                    {
+                                        //Drop incoming connection immediately
+                                        incomingTcpClient.Close();
+                                        if (tempMemory.Length > 0)
+                                        {
+                                            //If actual data was received proceed with logging
+                                            StringBuilder rawData = await convertMemoryStreamToString(tempMemory, cancellationToken);
+                                            
+                                            await endpointLogger.LogDebugAsync($"Log only endpoint. Request size [{tempMemory.Length} bytes] - Raw data received: {rawData.ToString().Trim()}");
+                                            rawData.Clear();
+                                        }
+                                        else
+                                            await endpointLogger.LogDebugAsync($"Log only endpoint. No data received");
+                                        
+                                        return;
+                                    }
                                 }
 
                                 if (endpointSetting.ProxyType == ReverseProxyType.LogAndProxy)
