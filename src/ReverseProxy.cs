@@ -49,7 +49,7 @@ namespace ReverseProxyServer
             await Task.WhenAll([.. pendingConnections]).WaitAsync(TimeSpan.FromSeconds(10));
 
             //Remove any completed connection tasks from memory
-            cleanCompletedConnections();
+            CleanCompletedConnections();
 
             //TODO: handling of timeouts
         }
@@ -82,7 +82,7 @@ namespace ReverseProxyServer
                     pendingConnections.Add(newConnection);
 
                     //Periodic cleaning of completed tasks
-                    cleanCompletedConnections();
+                    CleanCompletedConnections();
 
                     //Pause a little to avoid tight loop issues
                     await Task.Delay(500, cancellationToken);
@@ -124,7 +124,7 @@ namespace ReverseProxyServer
                                 if (endpointSetting.ProxyType == ReverseProxyType.LogOnly)
                                 {
                                     //Log data only and close connection
-                                    using (MemoryStream tempMemory = await convertNetworkStreamIntoMemory(incomingDataStream, cancellationToken))
+                                    using (MemoryStream tempMemory = await ConvertNetworkStreamIntoMemory(incomingDataStream, cancellationToken))
                                     {
                                         //Drop incoming connection immediately
                                         incomingTcpClient.Close();
@@ -157,8 +157,8 @@ namespace ReverseProxyServer
                                             {
                                                 using (destinationDataStream)
                                                 {
-                                                    Task incomingToDestinationTask = RelayDataAsync(incomingDataStream, destinationDataStream, endpointLogger, rawDataLogger, sessionId, "Incoming to Destination connection", cancellationToken);
-                                                    Task destinationToIncomingTask = RelayDataAsync(destinationDataStream, incomingDataStream, endpointLogger, rawDataLogger, sessionId, "Destination to Incoming connection", cancellationToken);
+                                                    Task incomingToDestinationTask = RelayDataAsync(incomingDataStream, destinationDataStream, endpointLogger, rawDataLogger, sessionId, CommunicationDirection.Incoming, cancellationToken);
+                                                    Task destinationToIncomingTask = RelayDataAsync(destinationDataStream, incomingDataStream, endpointLogger, rawDataLogger, sessionId, CommunicationDirection.Outgoing, cancellationToken);
 
                                                     //Return a task that awaits both incoming and destination tasks
                                                     await Task.WhenAll(incomingToDestinationTask, destinationToIncomingTask);
@@ -170,7 +170,7 @@ namespace ReverseProxyServer
                             }
                         }
                         else
-                            await endpointLogger.LogWarningAsync("Incoming client disconnected", sessionId);
+                            await endpointLogger.LogWarningAsync("Incoming connection disconnected", sessionId);
                     }
                 }
             }
@@ -189,7 +189,8 @@ namespace ReverseProxyServer
                 await endpointLogger.LogErrorAsync($"Error handling normal traffic on port {endpointSetting.TargetPort}", ex, sessionId);
             }
         }
-        private async Task RelayDataAsync(NetworkStream inputStream, NetworkStream outputStream, Logger endpointLogger, Logger rawDataLogger, string sessionId, string directionDescription, CancellationToken cancellationToken)
+        private async Task RelayDataAsync(NetworkStream inputStream, NetworkStream outputStream, Logger endpointLogger, Logger rawDataLogger, 
+                                          string sessionId, CommunicationDirection direction, CancellationToken cancellationToken)
         {
             try
             {
@@ -210,8 +211,11 @@ namespace ReverseProxyServer
                         if (!inputStream.DataAvailable)
                         {
                             StringBuilder rawPacket = await convertMemoryStreamToString(rawDataPacket, cancellationToken);
-                            _ = endpointLogger.LogInfoAsync($"Raw data logged. Request size [{rawDataPacket.Length} bytes]", sessionId);
-                            //TODO: Setting to control this and better connection info; _ = rawDataLogger.LogDebugAsync($"Request size [{rawDataPacket.Length} bytes] from {connectionInfo} Raw data received;{Environment.NewLine}{rawPacket.ToString().Trim()}", sessionId);
+                            _ = endpointLogger.LogInfoAsync($"{direction} request size [{rawDataPacket.Length} bytes] {(direction == CommunicationDirection.Incoming ? "Raw data logged" : "")}", sessionId);
+
+                            //Log only incoming requests raw data
+                            if (direction == CommunicationDirection.Incoming)
+                                _ = rawDataLogger.LogDebugAsync($"{direction} request size [{rawDataPacket.Length} bytes] from {connectionInfo} Raw data received;{Environment.NewLine}{rawPacket.ToString().Trim()}", sessionId);
                                             
                             rawDataPacket.SetLength(0);
                             rawDataPacket.Position = 0;
@@ -223,15 +227,15 @@ namespace ReverseProxyServer
                                         (socketEx.SocketErrorCode == SocketError.ConnectionReset ||
                                         socketEx.SocketErrorCode == SocketError.ConnectionAborted))
             {
-                await endpointLogger.LogWarningAsync($"Connection was forcibly closed by the remote host during relay of data. {socketEx.SocketErrorCode}", sessionId);
+                await endpointLogger.LogWarningAsync($"Connection was forcibly closed by the remote host during relay of [{direction}] data. {socketEx.SocketErrorCode}", sessionId);
             }
             catch (OperationCanceledException)
             {
-                await endpointLogger.LogDebugAsync($"Operation canceled while relaying data {directionDescription}. User requested to stop reverse proxy.", sessionId);
+                await endpointLogger.LogDebugAsync($"Operation canceled while relaying [{direction}] data. User requested to stop reverse proxy.", sessionId);
             }
             catch (Exception ex)
             {
-                await endpointLogger.LogErrorAsync($"Relaying data error ({directionDescription})", ex, sessionId);
+                await endpointLogger.LogErrorAsync($"Relaying [{direction}] data error", ex, sessionId);
             }
         }
 
@@ -245,14 +249,14 @@ namespace ReverseProxyServer
             if (memoryStream.CanSeek)
                 memoryStream.Seek(0, SeekOrigin.Begin);
 
-            using (StreamReader reader = new StreamReader(memoryStream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, leaveOpen: true))
+            using (StreamReader reader = new(memoryStream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, leaveOpen: true))
             {
                 rawData.Append(await reader.ReadToEndAsync(cancellationToken));
             }
             return rawData;
         }
         
-        private async Task<MemoryStream> convertNetworkStreamIntoMemory(NetworkStream networkStream, CancellationToken cancellationToken)
+        private async Task<MemoryStream> ConvertNetworkStreamIntoMemory(NetworkStream networkStream, CancellationToken cancellationToken)
         {
             MemoryStream memoryStream = new(this.bufferSize);
             Memory<byte> buffer = new(new byte[this.bufferSize]);
@@ -273,7 +277,7 @@ namespace ReverseProxyServer
             return memoryStream;
         }
 
-        private void cleanCompletedConnections()
+        private void CleanCompletedConnections()
         {
             ConcurrentBag<Task> cleanedConnections = [];
             //Atomic operation to swap pending connections to empty cleaned connections, returning the current values

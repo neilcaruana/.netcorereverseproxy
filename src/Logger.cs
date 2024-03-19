@@ -47,7 +47,7 @@ public class Logger : ILogger
         {
             StringBuilder newEntry = new StringBuilder()
                 .Append(string.IsNullOrWhiteSpace(logPrefix) ? "" : "[" + logPrefix + "]" + logDelimiter)
-                .Append(string.IsNullOrWhiteSpace(correlationId) ? "" : "[" + correlationId + "]")
+                .Append(string.IsNullOrWhiteSpace(correlationId) ? "" : "[" + correlationId + "]" + logDelimiter)
                 .Append(logDelimiter).Append(logDatePrefix)
                 .Append(logDelimiter).Append(messageLoggerLevel.ToString())
                 .Append(logDelimiter).Append(entry);
@@ -78,7 +78,7 @@ public class Logger : ILogger
     {
         lock (logLock)
         {
-            File.AppendAllTextAsync(logFilePath, entry + Environment.NewLine);
+            _ = File.AppendAllTextAsync(logFilePath, entry + Environment.NewLine);
         }
     }
 }

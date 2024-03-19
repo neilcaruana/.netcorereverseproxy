@@ -7,6 +7,12 @@ public enum ReverseProxyType
     ProxyOnly
 }
 
+public enum CommunicationDirection
+{
+    Incoming,
+    Outgoing,
+}
+
 public enum LoggerType
 {
     Console,
