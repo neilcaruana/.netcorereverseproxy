@@ -138,7 +138,7 @@ namespace ReverseProxyServer
                                         }
                                         else
                                         {
-                                            await endpointLogger.LogDebugAsync($"Connection dropped. No data received", sessionId);
+                                            await endpointLogger.LogWarningAsync($"Connection dropped. No data received", sessionId);
                                         }
                                         return;
                                     }
@@ -194,7 +194,6 @@ namespace ReverseProxyServer
         {
             try
             {
-                string connectionInfo = $"{inputStream.Socket.LocalEndPoint?.ToString()} -> {outputStream.Socket.LocalEndPoint?.ToString()}";
                 using (MemoryStream rawDataPacket = new())
                 {
                     Memory<byte> buffer = new byte[bufferSize];
@@ -215,7 +214,10 @@ namespace ReverseProxyServer
 
                             //Log only incoming requests raw data
                             if (direction == CommunicationDirection.Incoming)
+                            {
+                                string connectionInfo = $"{inputStream.Socket.RemoteEndPoint?.ToString()} -> {outputStream.Socket.RemoteEndPoint?.ToString()}";
                                 _ = rawDataLogger.LogDebugAsync($"{direction} request size [{rawDataPacket.Length} bytes] from {connectionInfo} Raw data received;{Environment.NewLine}{rawPacket.ToString().Trim()}", sessionId);
+                            }
                                             
                             rawDataPacket.SetLength(0);
                             rawDataPacket.Position = 0;

@@ -9,7 +9,7 @@ public class Logger : ILogger
     private LoggerType loggerType = LoggerType.ConsoleAndFile;
     private LoggerLevel loggerLevel = LoggerLevel.Debug;
     private string logDatePrefix => DateTime.Now.ToString("dd-MM-yyyy HH:mm:ss.fff", CultureInfo.InvariantCulture);
-    private const string logDelimiter = "  ";
+    private const string logDelimiter = "\t";
     private readonly object logLock = new();
     private readonly string logPrefix = "";
     private readonly string logFilePath = "";
@@ -48,7 +48,7 @@ public class Logger : ILogger
             StringBuilder newEntry = new StringBuilder()
                 .Append(string.IsNullOrWhiteSpace(logPrefix) ? "" : "[" + logPrefix + "]" + logDelimiter)
                 .Append(string.IsNullOrWhiteSpace(correlationId) ? "" : "[" + correlationId + "]" + logDelimiter)
-                .Append(logDelimiter).Append(logDatePrefix)
+                .Append(logDatePrefix)
                 .Append(logDelimiter).Append(messageLoggerLevel.ToString())
                 .Append(logDelimiter).Append(entry);
 
