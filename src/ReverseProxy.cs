@@ -56,7 +56,8 @@ namespace ReverseProxyServer
         private async Task CreateEndpointListener(int port, ReverseProxyEndpointConfig endpointSetting, CancellationToken cancellationToken)
         {
             TcpListener? listener = null;
-            Logger endpointLogger = new(endpointSetting.LoggerType, endpointSetting.LoggerLevel, endpointSetting.ProxyType.ToString());
+            Logger mainLogger = new(endpointSetting.LoggerType, endpointSetting.LoggerLevel, endpointSetting.ProxyType.ToString());
+            Logger rawDataLogger = new(LoggerType.File, LoggerLevel.Debug, "", "rawdata");
             try
             {
                 listener = new(IPAddress.Any, port);
@@ -66,15 +67,16 @@ namespace ReverseProxyServer
                 if (endpointSetting.ProxyType == ReverseProxyType.LogAndProxy || endpointSetting.ProxyType == ReverseProxyType.ProxyOnly)
                     endpointLog += $" -> {endpointSetting.TargetHost}:{endpointSetting.TargetPort}";
 
-                await endpointLogger.LogInfoAsync(endpointLog);
+                await mainLogger.LogInfoAsync(endpointLog);
 
                 //Check for incoming connections until user needs to stop server
                 while (!cancellationToken.IsCancellationRequested) 
                 {
                     var tcpClientTask = await listener.AcceptTcpClientAsync(cancellationToken);
-                                        
+                    string sessionId = Guid.NewGuid().ToString()[..8];
+
                     //Fire and forget processing of actual traffic, this will not block the current thread from processing new connections
-                    Task newConnection = ProxyTraffic(tcpClientTask, endpointSetting, endpointLogger, cancellationToken);
+                    Task newConnection = ProxyTraffic(tcpClientTask, endpointSetting, mainLogger, rawDataLogger, sessionId, cancellationToken);
                     
                     //Add connections to a thread safe list to monitor and gracefully wait and close when exiting
                     pendingConnections.Add(newConnection);
@@ -89,21 +91,22 @@ namespace ReverseProxyServer
             }
             catch (OperationCanceledException)
             {
-                await endpointLogger.LogDebugAsync("Operation cancelled: User requested to stop reverse proxy");
+                await mainLogger.LogDebugAsync("Operation cancelled: User requested to stop reverse proxy");
             }
             catch (Exception ex)
             {
-                await endpointLogger.LogErrorAsync($"Creating endpoint listener on port {endpointSetting.TargetPort}.", ex);
+                await mainLogger.LogErrorAsync($"Creating endpoint listener on port {endpointSetting.TargetPort}.", ex);
             }
             finally
             {
                 //Stop the listener since the user wants to stop the server
                 listener?.Stop(); 
-                await endpointLogger.LogInfoAsync($"Stopped listening on port {port}");
+                await mainLogger.LogInfoAsync($"Stopped listening on port {port}");
             }
         }
         private async Task ProxyTraffic(TcpClient incomingTcpClient, ReverseProxyEndpointConfig endpointSetting,
-                                        Logger endpointLogger, CancellationToken cancellationToken)
+                                        Logger endpointLogger, Logger rawDataLogger, string sessionId, 
+                                        CancellationToken cancellationToken)
         {
             try
             {   
@@ -111,7 +114,9 @@ namespace ReverseProxyServer
                 {
                     using (incomingTcpClient)
                     {
-                        _ = endpointLogger.LogInfoAsync($"Connection received from {incomingTcpClient.Client.RemoteEndPoint?.ToString()} -> {incomingTcpClient.Client.LocalEndPoint?.ToString()}");            
+                        string connectionInfo = $"{incomingTcpClient.Client.RemoteEndPoint?.ToString()} -> {incomingTcpClient.Client.LocalEndPoint?.ToString()}";
+                        _ = endpointLogger.LogInfoAsync($"Connection received from {connectionInfo}", sessionId);            
+
                         if (incomingTcpClient.Connected)
                         {
                             using (NetworkStream incomingDataStream = incomingTcpClient.GetStream())
@@ -127,12 +132,14 @@ namespace ReverseProxyServer
                                         {
                                             //If actual data was received proceed with logging
                                             StringBuilder rawData = await convertMemoryStreamToString(tempMemory, cancellationToken);
-                                            await endpointLogger.LogDebugAsync($"Connection dropped. Request size [{tempMemory.Length} bytes] - Raw data received;{Environment.NewLine}{rawData.ToString().Trim()}");
+                                            await endpointLogger.LogInfoAsync($"Connection dropped and raw data logged. Request size [{tempMemory.Length} bytes]", sessionId);
+                                            await rawDataLogger.LogDebugAsync($"Request size [{tempMemory.Length} bytes] from {connectionInfo}{Environment.NewLine}{rawData.ToString().Trim()}", sessionId);
                                             rawData.Clear();
                                         }
                                         else
-                                            await endpointLogger.LogDebugAsync($"Connection dropped. No data received");
-                                        
+                                        {
+                                            await endpointLogger.LogDebugAsync($"Connection dropped. No data received", sessionId);
+                                        }
                                         return;
                                     }
                                 }
@@ -150,8 +157,8 @@ namespace ReverseProxyServer
                                             {
                                                 using (destinationDataStream)
                                                 {
-                                                    Task incomingToDestinationTask = RelayDataAsync(incomingDataStream, destinationDataStream, endpointLogger, "Incoming to Destination connection", cancellationToken);
-                                                    Task destinationToIncomingTask = RelayDataAsync(destinationDataStream, incomingDataStream, endpointLogger, "Destination to Incoming connection", cancellationToken);
+                                                    Task incomingToDestinationTask = RelayDataAsync(incomingDataStream, destinationDataStream, endpointLogger, rawDataLogger, sessionId, "Incoming to Destination connection", cancellationToken);
+                                                    Task destinationToIncomingTask = RelayDataAsync(destinationDataStream, incomingDataStream, endpointLogger, rawDataLogger, sessionId, "Destination to Incoming connection", cancellationToken);
 
                                                     //Return a task that awaits both incoming and destination tasks
                                                     await Task.WhenAll(incomingToDestinationTask, destinationToIncomingTask);
@@ -163,7 +170,7 @@ namespace ReverseProxyServer
                             }
                         }
                         else
-                            await endpointLogger.LogWarningAsync("Incoming client disconnected");
+                            await endpointLogger.LogWarningAsync("Incoming client disconnected", sessionId);
                     }
                 }
             }
@@ -171,22 +178,23 @@ namespace ReverseProxyServer
                                         (socketEx.SocketErrorCode == SocketError.ConnectionReset ||
                                          socketEx.SocketErrorCode == SocketError.ConnectionAborted))
             {
-                await endpointLogger.LogWarningAsync($"Connection was forcibly closed by the remote host. {socketEx.SocketErrorCode}");
+                await endpointLogger.LogWarningAsync($"Connection was forcibly closed by the remote host. {socketEx.SocketErrorCode}", sessionId);
             }
             catch (OperationCanceledException)
             {
-                await endpointLogger.LogDebugAsync("Operation cancelled: User requested to stop reverse proxy");
+                await endpointLogger.LogDebugAsync("Operation cancelled: User requested to stop reverse proxy", sessionId);
             }
             catch (Exception ex)
             {
-                await endpointLogger.LogErrorAsync($"Error handling normal traffic on port {endpointSetting.TargetPort}", ex);
+                await endpointLogger.LogErrorAsync($"Error handling normal traffic on port {endpointSetting.TargetPort}", ex, sessionId);
             }
         }
-        private async Task RelayDataAsync(NetworkStream inputStream, NetworkStream outputStream, Logger endpointLogger, string directionDescription, CancellationToken cancellationToken)
+        private async Task RelayDataAsync(NetworkStream inputStream, NetworkStream outputStream, Logger endpointLogger, Logger rawDataLogger, string sessionId, string directionDescription, CancellationToken cancellationToken)
         {
             try
             {
-                using (MemoryStream fullPacket = new())
+                string connectionInfo = $"{inputStream.Socket.LocalEndPoint?.ToString()} -> {outputStream.Socket.LocalEndPoint?.ToString()}";
+                using (MemoryStream rawDataPacket = new())
                 {
                     Memory<byte> buffer = new byte[bufferSize];
                     int bytesRead;
@@ -196,15 +204,17 @@ namespace ReverseProxyServer
                         //First write to network stream
                         await outputStream.WriteAsync(buffer[..bytesRead], cancellationToken);
                         //Also write the same buffer to temp memory for logging purposes
-                        await fullPacket.WriteAsync(buffer[..bytesRead], cancellationToken);
+                        await rawDataPacket.WriteAsync(buffer[..bytesRead], cancellationToken);
 
                         //Don't wait for all data to be transmitted before logging, stream usually waits
                         if (!inputStream.DataAvailable)
                         {
-                            StringBuilder rawPacket = await convertMemoryStreamToString(fullPacket, cancellationToken);
-                            _ = endpointLogger.LogDebugAsync($"Full packet {fullPacket.Length} bytes{Environment.NewLine}{rawPacket.ToString().Trim()}");        
-                            fullPacket.SetLength(0);
-                            fullPacket.Position = 0;
+                            StringBuilder rawPacket = await convertMemoryStreamToString(rawDataPacket, cancellationToken);
+                            _ = endpointLogger.LogInfoAsync($"Raw data logged. Request size [{rawDataPacket.Length} bytes]", sessionId);
+                            //TODO: Setting to control this and better connection info; _ = rawDataLogger.LogDebugAsync($"Request size [{rawDataPacket.Length} bytes] from {connectionInfo} Raw data received;{Environment.NewLine}{rawPacket.ToString().Trim()}", sessionId);
+                                            
+                            rawDataPacket.SetLength(0);
+                            rawDataPacket.Position = 0;
                         }
                     }
                 }
@@ -213,15 +223,15 @@ namespace ReverseProxyServer
                                         (socketEx.SocketErrorCode == SocketError.ConnectionReset ||
                                         socketEx.SocketErrorCode == SocketError.ConnectionAborted))
             {
-                await endpointLogger.LogWarningAsync($"Connection was forcibly closed by the remote host during relay of data. {socketEx.SocketErrorCode}");
+                await endpointLogger.LogWarningAsync($"Connection was forcibly closed by the remote host during relay of data. {socketEx.SocketErrorCode}", sessionId);
             }
             catch (OperationCanceledException)
             {
-                await endpointLogger.LogDebugAsync($"Operation canceled while relaying data {directionDescription}. User requested to stop reverse proxy.");
+                await endpointLogger.LogDebugAsync($"Operation canceled while relaying data {directionDescription}. User requested to stop reverse proxy.", sessionId);
             }
             catch (Exception ex)
             {
-                await endpointLogger.LogErrorAsync($"Relaying data error ({directionDescription})", ex);
+                await endpointLogger.LogErrorAsync($"Relaying data error ({directionDescription})", ex, sessionId);
             }
         }
 
@@ -235,7 +245,7 @@ namespace ReverseProxyServer
             if (memoryStream.CanSeek)
                 memoryStream.Seek(0, SeekOrigin.Begin);
 
-            using (StreamReader reader = new StreamReader(memoryStream, Encoding.UTF8, true, leaveOpen: true))
+            using (StreamReader reader = new StreamReader(memoryStream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, leaveOpen: true))
             {
                 rawData.Append(await reader.ReadToEndAsync(cancellationToken));
             }

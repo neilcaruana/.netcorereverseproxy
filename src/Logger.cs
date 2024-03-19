@@ -12,10 +12,7 @@ public class Logger : ILogger
     private const string logDelimiter = "  ";
     private readonly object logLock = new();
     private readonly string logPrefix = "";
-
-    private string logFilePath {get {
-        return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "connections.log");
-    }}
+    private readonly string logFilePath = "";
 
     public LoggerType LoggerType
     {
@@ -28,31 +25,35 @@ public class Logger : ILogger
         set => loggerLevel = value;
     }
 
-    public Logger(LoggerType loggerType, LoggerLevel loggerLevel, string logPrefix = "")
+    public Logger(LoggerType loggerType, LoggerLevel loggerLevel, string logPrefix = "", string logFilename = "")
     {
         this.loggerType = loggerType;
         this.loggerLevel = loggerLevel;
         this.logPrefix = logPrefix;
+
+        if (string.IsNullOrWhiteSpace(logFilename))
+            this.logFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "main.log");
+        else
+            this.logFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, logFilename + ".log");
     }
-    public Task LogInfoAsync(string message) => LogAsync(message, LoggerLevel.Info);
-    public Task LogErrorAsync(string errorMessage, Exception? exception = null) =>
-        LogAsync($"{errorMessage} {(exception != null ? $"{exception.GetType().Name} : {exception.GetBaseException().Message}" : "")}", LoggerLevel.Error, ConsoleColor.Red);
-    public Task LogWarningAsync(string warningMessage) => LogAsync(warningMessage, LoggerLevel.Warning, ConsoleColor.Yellow);
-    public Task LogDebugAsync(string debugMessage) => LogAsync(debugMessage, LoggerLevel.Debug, ConsoleColor.Green);
-    private async Task LogAsync(string entry, LoggerLevel messageLoggerLevel, ConsoleColor? color = null)
+    public Task LogInfoAsync(string message, string correlationId = "") => LogAsync(message, LoggerLevel.Info, null, correlationId);
+    public Task LogErrorAsync(string errorMessage, Exception? exception = null, string correlationId = "") =>
+        LogAsync($"{errorMessage} {(exception != null ? $"{exception.GetType().Name} : {exception.GetBaseException().Message}" : "")}", LoggerLevel.Error, ConsoleColor.Red, correlationId);
+    public Task LogWarningAsync(string warningMessage, string correlationId = "") => LogAsync(warningMessage, LoggerLevel.Warning, ConsoleColor.Yellow, correlationId);
+    public Task LogDebugAsync(string debugMessage, string correlationId = "") => LogAsync(debugMessage, LoggerLevel.Debug, ConsoleColor.Green, correlationId);
+    private async Task LogAsync(string entry, LoggerLevel messageLoggerLevel, ConsoleColor? color = null, string correlationId = "")
     {
         if (messageLoggerLevel <= loggerLevel)
         {
             StringBuilder newEntry = new StringBuilder()
-                .Append($"[{logPrefix}]")
+                .Append(string.IsNullOrWhiteSpace(logPrefix) ? "" : "[" + logPrefix + "]" + logDelimiter)
+                .Append(string.IsNullOrWhiteSpace(correlationId) ? "" : "[" + correlationId + "]")
                 .Append(logDelimiter).Append(logDatePrefix)
                 .Append(logDelimiter).Append(messageLoggerLevel.ToString())
                 .Append(logDelimiter).Append(entry);
 
             if (color.HasValue)
-            {
                 Console.ForegroundColor = color.Value;
-            }
 
             switch (loggerType)
             {

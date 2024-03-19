@@ -2,8 +2,8 @@
 
 public interface ILogger
 {
-    Task LogInfoAsync(string message);
-    Task LogErrorAsync(string message, Exception? exception = null);
-    Task LogWarningAsync(string message);
-    Task LogDebugAsync(string message);
+    Task LogInfoAsync(string message, string correlationId = "");
+    Task LogErrorAsync(string message, Exception? exception = null, string correlationId = "");
+    Task LogWarningAsync(string message, string correlationId = "");
+    Task LogDebugAsync(string message, string correlationId = "");
 }

@@ -5,7 +5,7 @@ namespace ReverseProxyServer
 {
     public class Program
     {
-        static Logger logger = new Logger(LoggerType.ConsoleAndFile, LoggerLevel.Debug, "Main");
+        static readonly Logger logger = new Logger(LoggerType.ConsoleAndFile, LoggerLevel.Debug, "Main");
         static async Task Main(string[] args)
         {
             try
