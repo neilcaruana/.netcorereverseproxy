@@ -1,4 +1,5 @@
 ﻿using System.Runtime.InteropServices;
+using System.Text;
 using Microsoft.Extensions.Configuration;
 
 namespace ReverseProxyServer
@@ -43,7 +44,45 @@ namespace ReverseProxyServer
                             logger.LoggerType = newLoggerType;
                             break;
                         case ConsoleKey.S:
-                            await logger.LogInfoAsync($"Active connections: {reverseProxy.PendingConnectionsCount}");
+                            if (reverseProxy.TotalConnectionsCount > 0)
+                            {
+                                StringBuilder statisticsResult = new();
+                                statisticsResult.AppendLine($"Proxy statistics");
+                                statisticsResult.AppendLine($"----------------");
+                                statisticsResult.AppendLine();
+                                statisticsResult.AppendLine($"Total connections: {reverseProxy.TotalConnectionsCount}");
+                                statisticsResult.AppendLine($"Active connections: {reverseProxy.PendingConnectionsCount}");
+                                foreach (var activeConnection in reverseProxy.ActiveConnectionsInfo)
+                                {
+                                    statisticsResult.AppendLine("\t"+activeConnection);
+                                }
+                                statisticsResult.AppendLine();
+                                var groupByRemoteIPs = reverseProxy.Statistics
+                                                                   .GroupBy(stat => stat.RemoteAddress)
+                                                                   .Select(group => new { RemoteAddress = group.Key, Count = group.Count(), LastConnectTime = group.Max(stat => stat.ConnectionTime) })
+                                                                   .OrderByDescending(group => group.Count);
+
+                                statisticsResult.AppendLine($"Hits by Unique IPs [{groupByRemoteIPs.Count()}]");
+                                foreach (var item in groupByRemoteIPs)
+                                {
+                                    statisticsResult.AppendLine($"\t[{item.RemoteAddress}]\t[{item.Count}]\t[{ReverseProxyHelper.CalculateLastSeen(item.LastConnectTime)}]");
+                                }
+                                statisticsResult.AppendLine();
+
+                                var groupByLocalPorts = reverseProxy.Statistics
+                                                                    .GroupBy(stat => stat.LocalPort)
+                                                                    .Select(group => new { LocalPort = group.Key, Count = group.Count(), LastConnectTime = group.Max(stat => stat.ConnectionTime) })
+                                                                    .OrderByDescending(group => group.Count);
+
+                                statisticsResult.AppendLine($"Hits by Unique Ports [{groupByLocalPorts.Count()}]");
+                                foreach (var item in groupByLocalPorts)
+                                {
+                                    statisticsResult.AppendLine($"\t[{item.LocalPort}]\t[{item.Count}]\t[{ReverseProxyHelper.CalculateLastSeen(item.LastConnectTime)}]");
+                                }
+                                await logger.LogInfoAsync(Environment.NewLine+statisticsResult.ToString());
+                            }
+                            else
+                                await logger.LogWarningAsync("No statistics generated");
                             break;
                         default:
                             await logger.LogInfoAsync($"Press Ctrl+C to shutdown server or h for help");
