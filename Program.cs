@@ -65,7 +65,7 @@ namespace ReverseProxyServer
                                 statisticsResult.AppendLine($"Hits by Unique IPs [{groupByRemoteIPs.Count()}]");
                                 foreach (var item in groupByRemoteIPs)
                                 {
-                                    statisticsResult.AppendLine($"\t[{item.RemoteAddress}]\t[{item.Count}]\t[{ReverseProxyHelper.CalculateLastSeen(item.LastConnectTime)}]");
+                                    statisticsResult.AppendLine($"\t{item.RemoteAddress.PadRight(15, ' ')}\t[{item.Count}]\t[{ReverseProxyHelper.CalculateLastSeen(item.LastConnectTime)}]");
                                 }
                                 statisticsResult.AppendLine();
 
@@ -91,7 +91,9 @@ namespace ReverseProxyServer
                 } 
                 while (!cancellationTokenSource.IsCancellationRequested);
 
-                await logger.LogWarningAsync($"Stopping Reverse proxy server... finishing pending tasks {reverseProxy.PendingConnectionsCount}");
+                await logger.LogWarningAsync($"Stopping Reverse proxy server...");
+                if (reverseProxy.PendingConnectionsCount > 0)
+                    await logger.LogWarningAsync($"Waiting for all tasks to finish [{reverseProxy.PendingConnectionsCount}]");
                 reverseProxy.Stop().Wait(TimeSpan.FromSeconds(10));
                 await logger.LogInfoAsync($"Stopped Reverse proxy server..." + (reverseProxy.PendingConnectionsCount > 0 ? $" Some tasks did not finish {reverseProxy.PendingConnectionsCount}" : ""));
             }

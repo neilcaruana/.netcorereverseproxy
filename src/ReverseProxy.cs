@@ -16,6 +16,7 @@ namespace ReverseProxyServer
         private readonly ConcurrentBag<ReverseProxyStatistic> statistics = [];
         private readonly List<ReverseProxyEndpointConfig> settings;
         private readonly List<Task> listeners = [];
+        private Task? cleanPendingConnections;
         private readonly CancellationTokenSource cancellationTokenSource = new();
         public ReverseProxy(List<ReverseProxyEndpointConfig> reverseProxySettings, CancellationTokenSource cancellationTokenSource)
         {
@@ -38,6 +39,9 @@ namespace ReverseProxyServer
                     listeners.Add(CreateEndpointListener(port, endpointSetting, cancellationTokenSource.Token));
                 }
             }
+ 
+            //Start thread that cleans dictionary of closed connections 
+            cleanPendingConnections = CleanCompletedConnectionsAsync(new Logger(LoggerType.ConsoleAndFile, LoggerLevel.Debug), cancellationTokenSource.Token); 
         }
         public async Task Stop()
         {
@@ -47,8 +51,9 @@ namespace ReverseProxyServer
             //Wait for pending connections to finish with a timeout of 10 seconds
             await Task.WhenAll([.. pendingConnections.Values]).WaitAsync(TimeSpan.FromSeconds(10));
 
-            //Remove any completed connection tasks from memory
-            CleanCompletedConnections();
+            //Remove any completed connection tasks from memory with a timeout of 10 seconds
+            if (cleanPendingConnections != null)
+                await cleanPendingConnections.WaitAsync(TimeSpan.FromSeconds(10));;
 
             //TODO: handling of timeouts
         }
@@ -86,11 +91,8 @@ namespace ReverseProxyServer
                     if (!pendingConnections.TryAdd(connectionInfo, newConnection))
                         throw new Exception($"Could not add to pending conneciton: [{connectionInfo}]");
 
-                    //Periodic cleaning of completed tasks
-                    CleanCompletedConnections();
-
                     //Pause a little to avoid tight loop issues
-                    await Task.Delay(500, cancellationToken);
+                    await Task.Delay(100, cancellationToken);
                 }
                 
             }
@@ -289,21 +291,36 @@ namespace ReverseProxyServer
             if (newConnection.Client.LocalEndPoint is IPEndPoint local && newConnection.Client.RemoteEndPoint is IPEndPoint remote)
                 statistics.Add(new ReverseProxyStatistic(DateTime.Now, local.Address.ToString(), local.Port, remote.Address.ToString(), remote.Port));
         }
-        private void CleanCompletedConnections()
+        private async Task CleanCompletedConnectionsAsync(Logger logger, CancellationToken cancellationToken)
         {
-            ConcurrentDictionary<string, Task> cleanedConnections = [];
-            //Atomic operation to swap pending connections to empty cleaned connections, returning the current values
-            ConcurrentDictionary<string, Task> tempPendingConnections = Interlocked.Exchange(ref pendingConnections, cleanedConnections);
-
-            foreach (var pendingConnection in tempPendingConnections)
+            try
             {
-                if (pendingConnection.Value.IsCompleted == false)
+                while (!cancellationToken.IsCancellationRequested)
                 {
-                    if (!pendingConnections.TryAdd(pendingConnection.Key, pendingConnection.Value))
-                        throw new Exception($"Could not clean connection: [{pendingConnection.Key}]");
+                    ConcurrentDictionary<string, Task> cleanedConnections = [];
+                    //Atomic operation to swap pending connections to empty cleaned connections, returning the current values
+                    ConcurrentDictionary<string, Task> tempPendingConnections = Interlocked.Exchange(ref pendingConnections, cleanedConnections);
+
+                    foreach (var pendingConnection in tempPendingConnections)
+                    {
+                        if (pendingConnection.Value.IsCompleted == false)
+                        {
+                            if (!pendingConnections.TryAdd(pendingConnection.Key, pendingConnection.Value))
+                                throw new Exception($"Could not clean connection: [{pendingConnection.Key}]");
+                        }
+                    }
+
+                    //Pause a little to avoid tight loop issues
+                    await Task.Delay(100, cancellationToken);
                 }
             }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                await logger.LogErrorAsync($"Cleaning pending connections", ex);
+            }
         }
-        
     }
 }
