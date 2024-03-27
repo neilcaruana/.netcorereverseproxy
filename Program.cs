@@ -45,44 +45,12 @@ namespace ReverseProxyServer
                             break;
                         case ConsoleKey.S:
                             if (reverseProxy.TotalConnectionsCount > 0)
-                            {
-                                StringBuilder statisticsResult = new();
-                                statisticsResult.AppendLine($"Proxy statistics");
-                                statisticsResult.AppendLine($"----------------");
-                                statisticsResult.AppendLine();
-                                statisticsResult.AppendLine($"Total connections: {reverseProxy.TotalConnectionsCount}");
-                                statisticsResult.AppendLine($"Active connections: {reverseProxy.PendingConnectionsCount}");
-                                foreach (var activeConnection in reverseProxy.ActiveConnectionsInfo)
-                                {
-                                    statisticsResult.AppendLine("\t"+activeConnection);
-                                }
-                                statisticsResult.AppendLine();
-                                var groupByRemoteIPs = reverseProxy.Statistics
-                                                                   .GroupBy(stat => stat.RemoteAddress)
-                                                                   .Select(group => new { RemoteAddress = group.Key, Count = group.Count(), LastConnectTime = group.Max(stat => stat.ConnectionTime) })
-                                                                   .OrderByDescending(group => group.Count);
-
-                                statisticsResult.AppendLine($"Hits by Unique IPs [{groupByRemoteIPs.Count()}]");
-                                foreach (var item in groupByRemoteIPs)
-                                {
-                                    statisticsResult.AppendLine($"\t{item.RemoteAddress.PadRight(15, ' ')}\t[{item.Count}]\t[{ReverseProxyHelper.CalculateLastSeen(item.LastConnectTime)}]");
-                                }
-                                statisticsResult.AppendLine();
-
-                                var groupByLocalPorts = reverseProxy.Statistics
-                                                                    .GroupBy(stat => stat.LocalPort)
-                                                                    .Select(group => new { LocalPort = group.Key, Count = group.Count(), LastConnectTime = group.Max(stat => stat.ConnectionTime) })
-                                                                    .OrderByDescending(group => group.Count);
-
-                                statisticsResult.AppendLine($"Hits by Unique Ports [{groupByLocalPorts.Count()}]");
-                                foreach (var item in groupByLocalPorts)
-                                {
-                                    statisticsResult.AppendLine($"\t[{item.LocalPort}]\t[{item.Count}]\t[{ReverseProxyHelper.CalculateLastSeen(item.LastConnectTime)}]");
-                                }
-                                await logger.LogInfoAsync(Environment.NewLine+statisticsResult.ToString());
-                            }
+                                DisplayStatistics(reverseProxy);
                             else
                                 await logger.LogWarningAsync("No statistics generated");
+                            break;
+                        case ConsoleKey.A:
+                            await logger.LogInfoAsync(Environment.NewLine+getActiveConnections(reverseProxy));
                             break;
                         default:
                             await logger.LogInfoAsync($"Press Ctrl+C to shutdown server or h for help");
@@ -94,6 +62,7 @@ namespace ReverseProxyServer
                 await logger.LogWarningAsync($"Stopping Reverse proxy server...");
                 if (reverseProxy.PendingConnectionsCount > 0)
                     await logger.LogWarningAsync($"Waiting for all tasks to finish [{reverseProxy.PendingConnectionsCount}]");
+
                 reverseProxy.Stop().Wait(TimeSpan.FromSeconds(10));
                 await logger.LogInfoAsync($"Stopped Reverse proxy server..." + (reverseProxy.PendingConnectionsCount > 0 ? $" Some tasks did not finish {reverseProxy.PendingConnectionsCount}" : ""));
             }
@@ -154,7 +123,52 @@ namespace ReverseProxyServer
                 await logger.LogErrorAsync("Splashscreen error", ex);
            }
         }
+        static async void DisplayStatistics(ReverseProxy reverseProxy)
+        {
+            StringBuilder statisticsResult = new();
+            statisticsResult.AppendLine($"Proxy statistics");
+            statisticsResult.AppendLine($"----------------");
+            statisticsResult.AppendLine();
+            statisticsResult.AppendLine($"Total connections: {reverseProxy.TotalConnectionsCount}");
+            statisticsResult.AppendLine(getActiveConnections(reverseProxy));
 
+            var groupByRemoteIPs = reverseProxy.Statistics
+                                                .GroupBy(stat => stat.RemoteAddress)
+                                                .Select(group => new { RemoteAddress = group.Key, Count = group.Count(), LastConnectTime = group.Max(stat => stat.ConnectionTime) })
+                                                .OrderByDescending(group => group.Count);
+
+            statisticsResult.AppendLine($"Hits by Unique IPs [{groupByRemoteIPs.Count()}]");
+            foreach (var item in groupByRemoteIPs)
+            {
+                statisticsResult.AppendLine($"\tIP: {item.RemoteAddress.PadRight(15, ' ')} hit {item.Count.ToString("N0")}x last seen {ReverseProxyHelper.CalculateLastSeen(item.LastConnectTime)}");
+            }
+            statisticsResult.AppendLine();
+
+            var groupByLocalPorts = reverseProxy.Statistics
+                                                .GroupBy(stat => stat.LocalPort)
+                                                .Select(group => new { LocalPort = group.Key, Count = group.Count(), LastConnectTime = group.Max(stat => stat.ConnectionTime) })
+                                                .OrderByDescending(group => group.Count);
+
+            statisticsResult.AppendLine($"Hits by Unique Ports [{groupByLocalPorts.Count()}]");
+            foreach (var item in groupByLocalPorts)
+            {
+                statisticsResult.AppendLine($"\tPort: {item.LocalPort.ToString().PadRight(3, ' ')} hit {item.Count.ToString("N0")}x last hit {ReverseProxyHelper.CalculateLastSeen(item.LastConnectTime)}");
+            }
+            await logger.LogInfoAsync(Environment.NewLine+statisticsResult.ToString());
+        }
+        static string getActiveConnections(ReverseProxy reverseProxy)
+        {
+            StringBuilder statisticsResult = new();
+            statisticsResult.AppendLine($"Active connections: {reverseProxy.PendingConnectionsCount}");
+            foreach (var activeConnection in reverseProxy.ActiveConnectionsInfo)
+            {
+                DateTime connectedOn = DateTime.Parse(activeConnection[..activeConnection.IndexOf('|')]);
+                string cleanedConnectionInfo = activeConnection[(activeConnection.IndexOf('|')+1)..];
+                statisticsResult.AppendLine("\t"+cleanedConnectionInfo+"\t"+"started "+ReverseProxyHelper.CalculateLastSeen(connectedOn));
+            }
+            statisticsResult.AppendLine();
+            return statisticsResult.ToString();
+        }
         static List<ReverseProxyEndpointConfig> LoadConfigSettings()
         {
             var builder = new ConfigurationBuilder().SetBasePath(Directory.GetCurrentDirectory())

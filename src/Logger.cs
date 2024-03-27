@@ -46,11 +46,11 @@ public class Logger : ILogger
         if (messageLoggerLevel <= loggerLevel)
         {
             StringBuilder newEntry = new StringBuilder()
-                .Append(string.IsNullOrWhiteSpace(logPrefix) ? "" : "[" + logPrefix + "]" + logDelimiter)
+                .Append(logDatePrefix).Append(logDelimiter)
+                //.Append(string.IsNullOrWhiteSpace(logPrefix) ? "" : "[" + logPrefix + "]" + logDelimiter)
+                .Append(messageLoggerLevel.ToString()).Append(logDelimiter)
                 .Append(string.IsNullOrWhiteSpace(correlationId) ? "" : "[" + correlationId + "]" + logDelimiter)
-                .Append(logDatePrefix)
-                .Append(logDelimiter).Append(messageLoggerLevel.ToString())
-                .Append(logDelimiter).Append(entry);
+                .Append(entry);
 
             if (color.HasValue)
                 Console.ForegroundColor = color.Value;
