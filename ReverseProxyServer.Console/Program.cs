@@ -180,7 +180,7 @@ namespace ReverseProxyServer
             IConfigurationRoot configuration = builder.Build();
 
             List<EndpointConfig> endpoints = [];
-            configuration.GetSection("ReverseProxyEndpoints").Bind(endpoints);
+            configuration.GetSection("Endpoints").Bind(endpoints);
 
             //Validate each loaded endpoint config
             endpoints.ForEach(endpoint => endpoint.Validate());

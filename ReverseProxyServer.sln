@@ -3,11 +3,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.5.002.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ReverseProxyServer.Console", "ReverseProxyServer.Console.csproj", "{C1756583-7B65-40B3-8945-675E1A5DFE3C}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ReverseProxyServer.Console", "ReverseProxyServer.Console\ReverseProxyServer.Console.csproj", "{C1756583-7B65-40B3-8945-675E1A5DFE3C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReverseProxyServer.Core", "..\ReverseProxyServer.Core\ReverseProxyServer.Core.csproj", "{A1CDBADE-9EDD-4BCC-9F78-C8DF962D5315}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReverseProxyServer.Core", "ReverseProxyServer.Core\ReverseProxyServer.Core.csproj", "{A1CDBADE-9EDD-4BCC-9F78-C8DF962D5315}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReverseProxyServer.Data", "..\ReverseProxyServer.Data\ReverseProxyServer.Data.csproj", "{7D002AC7-5427-468F-B653-66E797E186DE}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReverseProxyServer.Data", "ReverseProxyServer.Data\ReverseProxyServer.Data.csproj", "{7D002AC7-5427-468F-B653-66E797E186DE}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
