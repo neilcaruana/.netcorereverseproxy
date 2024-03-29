@@ -1,6 +1,9 @@
 ﻿using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.Extensions.Configuration;
+using ReverseProxyServer.Core;
+using ReverseProxyServer.Core.Helpers;
+using ReverseProxyServer.Data;
 
 namespace ReverseProxyServer
 {
@@ -169,14 +172,14 @@ namespace ReverseProxyServer
             statisticsResult.AppendLine();
             return statisticsResult.ToString();
         }
-        static List<ReverseProxyEndpointConfig> LoadConfigSettings()
+        static List<EndpointConfig> LoadConfigSettings()
         {
             var builder = new ConfigurationBuilder().SetBasePath(Directory.GetCurrentDirectory())
                                                     .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
 
             IConfigurationRoot configuration = builder.Build();
 
-            List<ReverseProxyEndpointConfig> endpoints = [];
+            List<EndpointConfig> endpoints = [];
             configuration.GetSection("ReverseProxyEndpoints").Bind(endpoints);
 
             //Validate each loaded endpoint config
