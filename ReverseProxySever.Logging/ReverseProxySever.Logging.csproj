@@ -7,7 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\ReverseProxyServer.Core\ReverseProxyServer.Core.csproj" />
+    <ProjectReference Include="..\ReverseProxyServer.Data\ReverseProxyServer.Data.csproj" />
   </ItemGroup>
 
 </Project>
