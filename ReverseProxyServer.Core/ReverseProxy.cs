@@ -126,12 +126,12 @@ namespace ReverseProxyServer.Core
                     incomingTcpClient.ReceiveTimeout = settings.ReceiveTimeout;
                     incomingTcpClient.SendTimeout = settings.SendTimeout;
 
+                    //TODO: This needs refactoring
                     string connectionInfo = ProxyHelper.GetConnectionInfo(incomingTcpClient, endpointSetting.ProxyType, endpointSetting, (incomingTcpClient.Client.LocalEndPoint as IPEndPoint)?.Port);
                     await (externalLogger?.LogInfoAsync($"Connection received from {connectionInfo}", sessionId) ?? Task.CompletedTask);            
 
                     if (incomingTcpClient.Connected)
                     {
-
                         using NetworkStream incomingDataStream = incomingTcpClient.GetStream();
                         if (endpointSetting.ProxyType == ReverseProxyType.HoneyPot)
                         {
@@ -215,7 +215,7 @@ namespace ReverseProxyServer.Core
                     Memory<byte> buffer = new byte[bufferSize];
                     int bytesRead;
 
-                    while ((bytesRead = await inputStream.ReadAsync(buffer, cancellationToken)) > 0)
+                    while ((bytesRead = await inputStream.ReadAsyncWithTimeout(buffer, settings.ReceiveTimeout, cancellationToken)) > 0)
                     {
                         //First write to network stream
                         await outputStream.WriteAsync(buffer[..bytesRead], cancellationToken);
