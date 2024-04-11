@@ -1,6 +1,4 @@
-﻿using System.Threading;
-
-namespace System.Net.Sockets
+﻿namespace System.Net.Sockets
 {
     public static class StreamExtension
     {

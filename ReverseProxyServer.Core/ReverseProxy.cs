@@ -15,8 +15,7 @@ namespace ReverseProxyServer.Core
         public int TotalConnectionsCount => statistics.Count;
         public IEnumerable<IStatistics> Statistics => [.. statistics];
         public IEnumerable<string> ActiveConnectionsInfo => [.. pendingConnections.Keys];
-
-        private readonly int bufferSize = 4096;
+        //private int bufferSize => settings.BufferSize;
         private ConcurrentDictionary<string,Task> pendingConnections = [];
         private readonly ConcurrentBag<IStatistics> statistics = [];
         private readonly IProxyConfig settings;
@@ -70,10 +69,12 @@ namespace ReverseProxyServer.Core
             TcpListener? listener = null;
             try
             {
-                listener = new(IPAddress.Any, port);
+                //Get the first Internetwork IP address or listen to any
+                IPAddress listeningIPAddress = Dns.GetHostAddresses(endpointSetting.ListeningAddress).FirstOrDefault(ip => ip.AddressFamily == AddressFamily.InterNetwork) ?? IPAddress.Loopback;
+                listener = new(listeningIPAddress, port);
                 listener.Start();
 
-                string endpointLog = $"Reverse Proxy ({endpointSetting.ProxyType}) listening on {IPAddress.Any} port {port}" + (endpointSetting.ProxyType == ReverseProxyType.Forward ? $" -> {endpointSetting.TargetHost}:{endpointSetting.TargetPort}" : "");
+                string endpointLog = $"Reverse Proxy ({endpointSetting.ProxyType}) listening on {listeningIPAddress} port {port}" + (endpointSetting.ProxyType == ReverseProxyType.Forward ? $" -> {endpointSetting.TargetHost}:{endpointSetting.TargetPort}" : "");
 
                 await (externalLogger?.LogInfoAsync(endpointLog) ?? Task.CompletedTask);
 
@@ -136,7 +137,7 @@ namespace ReverseProxyServer.Core
                         if (endpointSetting.ProxyType == ReverseProxyType.HoneyPot)
                         {
                             //Log data only and close connection
-                            using MemoryStream tempMemory = await ConvertNetworkStreamIntoMemory(incomingDataStream, sessionId, cancellationToken);
+                            using MemoryStream tempMemory = await ConvertNetworkStreamIntoMemory(incomingDataStream, cancellationToken);
                             //Drop incoming connection immediately after reading data
                             incomingTcpClient.Close();
                             if (tempMemory.Length > 0)
@@ -212,7 +213,7 @@ namespace ReverseProxyServer.Core
             {
                 using (MemoryStream rawDataPacket = new())
                 {
-                    Memory<byte> buffer = new byte[bufferSize];
+                    Memory<byte> buffer = new byte[settings.BufferSize];
                     int bytesRead;
 
                     while ((bytesRead = await inputStream.ReadAsyncWithTimeout(buffer, settings.ReceiveTimeout, cancellationToken)) > 0)
@@ -259,7 +260,7 @@ namespace ReverseProxyServer.Core
 
         private async Task<StringBuilder> ConvertMemoryStreamToString(MemoryStream memoryStream, CancellationToken cancellationToken)
         {
-            StringBuilder rawData = new(this.bufferSize);
+            StringBuilder rawData = new(settings.BufferSize);
 
             if (memoryStream.Length == 0)
                 return new StringBuilder(0);
@@ -274,10 +275,10 @@ namespace ReverseProxyServer.Core
             return rawData;
         }
         
-        private async Task<MemoryStream> ConvertNetworkStreamIntoMemory(NetworkStream networkStream, string sessionId, CancellationToken cancellationToken)
+        private async Task<MemoryStream> ConvertNetworkStreamIntoMemory(NetworkStream networkStream, CancellationToken cancellationToken)
         {
-            MemoryStream memoryStream = new(this.bufferSize);
-            Memory<byte> buffer = new(new byte[this.bufferSize]);
+            MemoryStream memoryStream = new(settings.BufferSize);
+            Memory<byte> buffer = new(new byte[settings.BufferSize]);
             if (!cancellationToken.IsCancellationRequested)
             {
                 int bytesRead;
