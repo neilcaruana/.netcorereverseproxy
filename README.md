@@ -1,5 +1,5 @@
 # .NET Core Reverse Proxy
-This project implements a lightweight reverse proxy in .NET 8, designed to proxy requests and can also act as a simple honeypot to listen on port ranges and log the request only. It supports both HTTP and HTTPS traffic, provides configurable logging capabilities per endpoint, and can be easily extended for more advanced scenarios such as load balancing, request modification, and more.
+This project implements a lightweight reverse proxy and simple Honeypot in .NET 8, designed to proxy requests and can also act as a simple honeypot to listen on port ranges and log the request only. It supports both HTTP and HTTPS traffic, provides configurable logging capabilities, and can be easily extended for more advanced scenarios such as load balancing, request modification, and more.
 
 ## Features
 * HTTP and HTTPS Support: Forward HTTP and HTTPS requests transparently.
@@ -8,47 +8,47 @@ This project implements a lightweight reverse proxy in .NET 8, designed to proxy
 * Cancellation Support: Gracefully handle shutdown requests with proper cleanup.
 * Duplex Streaming: Real-time data processing with the ability to intercept and log data
 * Asynchronous I/O: Leverages C#'s async/await for efficient network operations.
+* Statistics: Provides a console report with active and historical connections by unique IP Addresses and ports
 
-## Configuring Endpoints
-Listening endpoints can be configured through the appsettings.json file under the ReverseProxyEndpoints section. Each entry within this section represents a separate proxy endpoint configuration, including its own listening port ranges, target host, target port and log levels etc.
+## Configuring Proxy & Endpoints
+Listening endpoints can be configured through the appsettings.json file. Each entry within the Endpoints section represents a separate proxy endpoint configuration, including its own type, listening port ranges, target host, target port etc.
 
 Below is an example configuration for setting up multiple listening endpoints:
 
 ```
 {
-  "ReverseProxyEndpoints": [
+  "SendTimeout": 60,
+  "ReceiveTimeout": 60,
+  "BufferSize": 4096,
+  "LogLevel": "Debug",
+  "EndPoints": [
     {
-      "ProxyType": "LogAndProxy",
-      "ListeningPortRange": {
-        "Start": 80,
-        "End": 80
-      },
+      "ProxyType": "Forward",
+      "ListeningAddress": "192.168.1.100",
+      "ListeningPortRange": "80",
       "TargetHost": "localhost",
-      "TargetPort": 81,
-      "LoggerType": "ConsoleAndFile",
-      "LoggerLevel": "Warning"
+      "TargetPort": 81
     },
     {
-      "ProxyType": "LogAndProxy",
-      "ListeningPortRange": {
-        "Start": 443,
-        "End": 443
-      },
+      "ProxyType": "Forward",
+      "ListeningAddress": "192.168.1.100",
+      "ListeningPortRange": "443",
       "TargetHost": "localhost",
-      "TargetPort": 444,
-      "LoggerType": "ConsoleAndFile",
-      "LoggerLevel": "Warning"
+      "TargetPort": 444
     },
     {
-      "ProxyType": "LogOnly",
-      "ListeningPortRange": {
-        "Start": 1,
-        "End": 79
-      },
-      "TargetHost": "",
-      "TargetPort": 0,
-      "LoggerType": "ConsoleAndFile",
-      "LoggerLevel": "Debug"
+      "ProxyType": "Honeypot",
+      "ListeningAddress": "192.168.1.100",
+      "ListeningPortRange": "1-79",
+      "TargetHost": "localhost",
+      "TargetPort": -1
+    },
+    {
+      "ProxyType": "Honeypot",
+      "ListeningAddress": "192.168.1.100",
+      "ListeningPortRange": "82-120",
+      "TargetHost": "localhost",
+      "TargetPort": -1
     }
   ]
 }

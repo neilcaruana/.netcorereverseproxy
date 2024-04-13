@@ -9,7 +9,12 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ReverseProxyServer.Core", "
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ReverseProxyServer.Data", "ReverseProxyServer.Data\ReverseProxyServer.Data.csproj", "{7D002AC7-5427-468F-B653-66E797E186DE}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReverseProxySever.Logging", "ReverseProxySever.Logging\ReverseProxySever.Logging.csproj", "{0ECB64FF-307F-474B-A227-79914C329964}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ReverseProxySever.Logging", "ReverseProxySever.Logging\ReverseProxySever.Logging.csproj", "{0ECB64FF-307F-474B-A227-79914C329964}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{6D6B5E42-A941-44A3-9DD1-01094A58A3B2}"
+	ProjectSection(SolutionItems) = preProject
+		README.md = README.md
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
