@@ -1,20 +1,36 @@
 ﻿using ReverseProxyServer.Core.Enums.ProxyEnums;
 using ReverseProxyServer.Core.Interfaces;
+using ReverseProxyServer.Helpers;
 using System.Diagnostics;
+using System.Net;
 using System.Net.Sockets;
 
 namespace ReverseProxyServer.Core.Helpers;
 
 public static class ProxyHelper
 {
-    public static string GetConnectionInfo(TcpClient client, ReverseProxyType reverseProxyType, IProxyEndpointConfig setting, int? port)
+    public static string GetConnectionInfoString(IReverseProxyConnection connection)
     {
-        string connectionInfo = $"{client?.Client?.RemoteEndPoint?.ToString()}";
-        if (reverseProxyType == ReverseProxyType.Forward)
-            connectionInfo += $" -> {setting.TargetHost}:{setting.TargetPort}";
-        else if (reverseProxyType == ReverseProxyType.HoneyPot)
-            connectionInfo += $" -> Port {port}";
+        string connectionInfo = $"{connection.RemoteAddress}";
+        if (connection.ProxyType == ReverseProxyType.Forward)
+            connectionInfo += $" -> {connection.LocalAddress}:{connection.LocalPort}";
+        else if (connection.ProxyType == ReverseProxyType.HoneyPot)
+            connectionInfo += $" -> Port {connection.LocalPort}";
         return connectionInfo;
+    }
+    public static IPAddress GetEndpointIPAddress(EndPoint? endPoint)
+    {
+        if (endPoint is IPEndPoint remoteEndPoint)
+            return remoteEndPoint.Address;
+        else
+            throw new ArgumentException($"Invalid type {endPoint?.GetType()}", nameof(endPoint));
+    }
+    public static int GetEndpointPort(EndPoint? endPoint)
+    {
+        if (endPoint is IPEndPoint remoteEndPoint)
+            return remoteEndPoint.Port;
+        else
+            throw new ArgumentException($"Invalid type {endPoint?.GetType()}", nameof(endPoint));
     }
 
     public static string CalculateLastSeen(DateTime lastConnectedTime)

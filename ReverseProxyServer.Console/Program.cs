@@ -50,7 +50,7 @@ namespace ReverseProxyServer
                                 await logger.LogWarningAsync("No statistics generated");
                             break;
                         case ConsoleKey.A:
-                            if (reverseProxy.ActiveConnectionsInfo.Any())
+                            if (reverseProxy.ActiveConnections.Any())
                                 await logger.LogInfoAsync(Environment.NewLine+ ConsoleHelpers.GetActiveConnections(reverseProxy));
                             else
                                 await logger.LogWarningAsync("No active connections");

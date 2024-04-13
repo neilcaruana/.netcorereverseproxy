@@ -51,11 +51,10 @@ namespace ReverseProxyServer
         {
             StringBuilder statisticsResult = new();
             statisticsResult.AppendLine($"Active connections: {reverseProxy.PendingConnectionsCount}");
-            foreach (var activeConnection in reverseProxy.ActiveConnectionsInfo)
+            foreach (var activeConnection in reverseProxy.ActiveConnections)
             {
-                DateTime connectedOn = DateTime.Parse(activeConnection[..activeConnection.IndexOf('|')]);
-                string cleanedConnectionInfo = activeConnection[(activeConnection.IndexOf('|') + 1)..];
-                statisticsResult.AppendLine("\t" + cleanedConnectionInfo + "\t" + "started " + ProxyHelper.CalculateLastSeen(connectedOn));
+                string cleanedConnectionInfo = $"[{activeConnection.SessionId}] {ProxyHelper.GetConnectionInfoString(activeConnection)}";
+                statisticsResult.AppendLine("\t" + cleanedConnectionInfo + "\t" + "started " + ProxyHelper.CalculateLastSeen(activeConnection.ConnectionTime));
             }
             statisticsResult.AppendLine();
             return statisticsResult.ToString();
