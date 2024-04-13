@@ -20,8 +20,8 @@ namespace ReverseProxyServer.Core.Helpers
                 if (string.IsNullOrEmpty(endpoint.ListeningPortRange))
                     throw new ArgumentNullException("ListeningPortRange", "Please specify a listening port range ex. 8080:9000 or 8000");
 
-                // Assuming endpoint.ListeningPortRange is a string like "80:100" or "80"
-                var portRange = endpoint.ListeningPortRange.Split(':');
+                // Assuming endpoint.ListeningPortRange is a string like "80-100" or "80"
+                var portRange = endpoint.ListeningPortRange.Split('-');
                 int endingPort = -1;
                 // Parse starting port
                 if (!int.TryParse(portRange[0], out int startingPort) || startingPort < 0 || startingPort > 65535)

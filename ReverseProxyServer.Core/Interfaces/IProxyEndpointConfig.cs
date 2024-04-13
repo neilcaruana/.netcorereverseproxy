@@ -1,4 +1,6 @@
 ﻿using ReverseProxyServer.Core.Enums.ProxyEnums;
+using System.Net;
+using System.Net.Sockets;
 using System.Text.Json.Serialization;
 
 namespace ReverseProxyServer.Core.Interfaces
@@ -16,7 +18,7 @@ namespace ReverseProxyServer.Core.Interfaces
         {
             get
             {
-                var ports = ListeningPortRange?.Split(':');
+                var ports = ListeningPortRange?.Split('-');
                 if (ports?.Length > 0 && int.TryParse(ports[0], out int startingPort))
                 {
                     return startingPort;
@@ -30,7 +32,7 @@ namespace ReverseProxyServer.Core.Interfaces
         {
             get
             {
-                var ports = ListeningPortRange?.Split(':');
+                var ports = ListeningPortRange?.Split('-');
                 // If only one port is specified, or two ports are specified and the second is valid
                 if (ports?.Length == 1 && int.TryParse(ports[0], out int port))
                 {
@@ -41,6 +43,24 @@ namespace ReverseProxyServer.Core.Interfaces
                     return endingPort;
                 }
                 throw new InvalidOperationException("Invalid or unspecified Ending Port.");
+            }
+        }
+        [JsonIgnore]
+        public IPAddress ListeningIpAddress
+        {
+            get
+            {
+                if (IPAddress.TryParse(ListeningAddress, out IPAddress? ipAddress))
+                    return ipAddress;
+                else
+                {
+                    //If hostname is written get first internetwork IPv4 or IPv6 address
+                    IPAddress? listeningIPAddress = Dns.GetHostAddresses(ListeningAddress).OrderBy(ip => ip.AddressFamily)
+                                                                                          .FirstOrDefault(ip => ip.AddressFamily == AddressFamily.InterNetwork ||
+                                                                                                                ip.AddressFamily == AddressFamily.InterNetworkV6);
+                              
+                    return listeningIPAddress ?? throw new Exception($"No DNS entries found to listen on {ListeningAddress}");
+                }
             }
         }
     }

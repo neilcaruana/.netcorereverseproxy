@@ -70,13 +70,11 @@ namespace ReverseProxyServer.Core
             TcpListener? listener = null;
             try
             {
-                //TODO: Not working
-                IPAddress listeningIPAddress = Dns.GetHostAddresses(endpointSetting.ListeningAddress)
-                                              .FirstOrDefault(ip => ip.AddressFamily == AddressFamily.InterNetwork) ?? IPAddress.Loopback;
-                listener = new(IPAddress.Any, port);
+                IPAddress listeningAddress = endpointSetting.ListeningIpAddress;
+                listener = new(listeningAddress, port);
                 listener.Start();
 
-                string endpointLog = $"Reverse Proxy ({endpointSetting.ProxyType}) listening on {listeningIPAddress} port {port}" + (endpointSetting.ProxyType == ReverseProxyType.Forward ? $" -> {endpointSetting.TargetHost}:{endpointSetting.TargetPort}" : "");
+                string endpointLog = $"Reverse Proxy ({endpointSetting.ProxyType}) listening on {listeningAddress} port {port}" + (endpointSetting.ProxyType == ReverseProxyType.Forward ? $" -> {endpointSetting.TargetHost}:{endpointSetting.TargetPort}" : "");
 
                 await (externalLogger?.LogInfoAsync(endpointLog) ?? Task.CompletedTask);
 
@@ -87,7 +85,7 @@ namespace ReverseProxyServer.Core
 
                     string sessionId = Guid.NewGuid().ToString()[..8];
                     ConnectionInfo connection = new(DateTime.Now, sessionId, endpointSetting.ProxyType, endpointSetting.ListeningAddress, port, 
-                                                        ProxyHelper.GetEndpointIPAddress(incomingConnectionTcpClient.Client.RemoteEndPoint).ToString(), ProxyHelper.GetEndpointPort(incomingConnectionTcpClient.Client.RemoteEndPoint));
+                                                    ProxyHelper.GetEndpointIPAddress(incomingConnectionTcpClient.Client.RemoteEndPoint).ToString(), ProxyHelper.GetEndpointPort(incomingConnectionTcpClient.Client.RemoteEndPoint));
                     statistics.Add(connection);//TODO: To change to an event and handle outside also to check values
 
                     //Fire and forget processing of actual traffic, this will not block the current thread from processing new connections

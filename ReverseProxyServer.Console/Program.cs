@@ -27,7 +27,7 @@ namespace ReverseProxyServer
                 await logger.LogInfoAsync("Loading settings...");
                 IProxyConfig settings = ConsoleHelpers.LoadProxySettings();
 
-                await logger.LogInfoAsync("Starting Reverse proxy server");
+                await logger.LogInfoAsync($"Starting Reverse proxy server on {Dns.GetHostName()}");
                 //Start the reverse proxy with the specified setting
                 ReverseProxy reverseProxy = new(settings, cancellationTokenSource.Token, LoggerFactory.CreateCompositeLogger(settings.LogLevel));
                 reverseProxy.Start();
