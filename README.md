@@ -1,5 +1,5 @@
 # .NET Core Reverse Proxy
-This project implements a lightweight reverse proxy and simple Honeypot in .NET 8, designed to proxy requests and can also act as a simple honeypot to listen on port ranges and log the request only. It supports both HTTP and HTTPS traffic, provides configurable logging capabilities, and can be easily extended for more advanced scenarios such as load balancing, request modification, and more.
+This project implements a lightweight reverse proxy and simple Honeypot in .NET 8, designed to proxy requests and also act as a simple honeypot capturing request data for analysis. It supports both HTTP and HTTPS traffic, provides configurable logging capabilities, and can be easily extended for more advanced scenarios such as load balancing, request modification, and more.
 
 ## Features
 * HTTP and HTTPS Support: Forward HTTP and HTTPS requests transparently.
@@ -10,7 +10,7 @@ This project implements a lightweight reverse proxy and simple Honeypot in .NET 
 * Asynchronous I/O: Leverages C#'s async/await for efficient network operations.
 * Statistics: Provides a console report with active and historical connections by unique IP Addresses and ports
 
-## Configuring Proxy & Endpoints
+## Configuration
 Listening endpoints can be configured through the appsettings.json file. Each entry within the Endpoints section represents a separate proxy endpoint configuration, including its own type, listening port ranges, target host, target port etc.
 
 Below is an example configuration for setting up multiple listening endpoints:
@@ -24,7 +24,7 @@ Below is an example configuration for setting up multiple listening endpoints:
   "EndPoints": [
     {
       "ProxyType": "Forward",
-      "ListeningAddress": "192.168.1.100",
+      "ListeningAddress": "localhost",
       "ListeningPortRange": "80",
       "TargetHost": "localhost",
       "TargetPort": 81
