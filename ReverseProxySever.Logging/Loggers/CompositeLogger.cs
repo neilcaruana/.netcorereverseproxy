@@ -24,6 +24,12 @@ public class CompositeLogger(IEnumerable<ILogger> loggers) : ILogger
         await Task.WhenAll(logs);
     }
 
+    public async Task LogRequestAsync(string message, string correlationId = "")
+    {
+        IEnumerable<Task> logs = loggers.Select(logger => logger.LogRequestAsync(message, correlationId));
+        await Task.WhenAll(logs);
+    }
+
     public async Task LogWarningAsync(string message, string correlationId = "")
     {
         IEnumerable<Task> logs = loggers.Select(logger => logger.LogWarningAsync(message, correlationId));

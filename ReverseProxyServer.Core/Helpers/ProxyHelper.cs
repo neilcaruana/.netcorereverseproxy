@@ -11,11 +11,11 @@ public static class ProxyHelper
 {
     public static string GetConnectionInfoString(IReverseProxyConnection connection)
     {
-        string connectionInfo = $"{connection.RemoteAddress}";
+        string connectionInfo = $"{connection.RemoteAddress}:{connection.RemotePort}";
         if (connection.ProxyType == ReverseProxyType.Forward)
-            connectionInfo += $" -> {connection.LocalAddress}:{connection.LocalPort}";
+            connectionInfo += $" -> {connection.LocalAddress}:{connection.LocalPort}->{connection.TargetPort}";
         else if (connection.ProxyType == ReverseProxyType.HoneyPot)
-            connectionInfo += $" -> Port {connection.LocalPort}";
+            connectionInfo += $" -> {connection.LocalAddress}:{connection.LocalPort}";
         return connectionInfo;
     }
     public static IPAddress GetEndpointIPAddress(EndPoint? endPoint)

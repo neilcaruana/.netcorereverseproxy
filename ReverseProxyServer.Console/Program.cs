@@ -40,7 +40,7 @@ namespace ReverseProxyServer
                     {
                         //Handle Ctrl+C
                         case ConsoleKey.C when keyPressedInfo.Modifiers == ConsoleModifiers.Control:
-                            await logger.LogInfoAsync("Caught signal interrupt: shutting down server...");
+                            await logger.LogWarningAsync("Caught signal interrupt: shutting down server...");
                             cancellationTokenSource.Cancel();
                             break;
                         case ConsoleKey.S:
@@ -56,7 +56,7 @@ namespace ReverseProxyServer
                                 await logger.LogWarningAsync("No active connections");
                             break;
                         default:
-                            await logger.LogInfoAsync($"Press Ctrl+C to shutdown server or h for help");
+                            await logger.LogWarningAsync($"Press Ctrl+C to shutdown server or h for help");
                             break;
                     }
                 } 

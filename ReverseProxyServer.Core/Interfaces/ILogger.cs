@@ -6,4 +6,5 @@ public interface ILogger
     Task LogErrorAsync(string message, Exception? exception = null, string correlationId = "");
     Task LogWarningAsync(string message, string correlationId = "");
     Task LogDebugAsync(string message, string correlationId = "");
+    Task LogRequestAsync(string message, string correlationId = "");
 }

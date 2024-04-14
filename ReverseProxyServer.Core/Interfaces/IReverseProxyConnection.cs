@@ -9,6 +9,8 @@ namespace ReverseProxyServer.Core.Interfaces
         ReverseProxyType ProxyType { get; init; }
         string LocalAddress { get; init; }
         int LocalPort { get; init; }
+        public string TargetHost { get; init; }
+        public int TargetPort { get; init; }
         string RemoteAddress { get; init; }
         int RemotePort { get; init; }
     }

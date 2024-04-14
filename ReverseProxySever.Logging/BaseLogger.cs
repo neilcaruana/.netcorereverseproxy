@@ -11,14 +11,19 @@ public class BaseLogger(LogLevel loggerLevel)
     private readonly string delimeter = "\t";
 
     public LogLevel LoggerLevel { get; set; } = loggerLevel;
-    public string GetLogEntry(string entry, LogLevel messageLoggerLevel, string correlationId = "")
+    public string GetLogEntryHeader(LogLevel messageLoggerLevel, string correlationId = "")
     {
-        StringBuilder newEntry = new();
-        newEntry.Append(this.datePrefix).Append(this.delimeter)
+        StringBuilder newHeaderEntry = new();
+        newHeaderEntry.Append(datePrefix).Append(this.delimeter)
                 .Append(messageLoggerLevel.ToString()).Append(this.delimeter)
-                .Append(string.IsNullOrWhiteSpace(correlationId) ? "" : "[" + correlationId + "]" + this.delimeter)
-                .Append(entry);
+                .Append(string.IsNullOrWhiteSpace(correlationId) ? "" : "[" + correlationId + "]" + this.delimeter);
 
-        return newEntry.ToString();
+        return newHeaderEntry.ToString();
     }
+    public string GetLogEntryMessage(string entry)
+    {
+        return entry;
+    }
+
+
 }

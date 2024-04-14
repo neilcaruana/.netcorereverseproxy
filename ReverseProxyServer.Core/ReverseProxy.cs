@@ -84,9 +84,9 @@ namespace ReverseProxyServer.Core
                     TcpClient incomingConnectionTcpClient = await listener.AcceptTcpClientAsync(cancellationToken);
 
                     string sessionId = Guid.NewGuid().ToString()[..8];
-                    ConnectionInfo connection = new(DateTime.Now, sessionId, endpointSetting.ProxyType, endpointSetting.ListeningAddress, port, 
+                    ConnectionInfo connection = new(DateTime.Now, sessionId, endpointSetting.ProxyType, endpointSetting.ListeningAddress, port, endpointSetting.TargetHost, endpointSetting.TargetPort,
                                                     ProxyHelper.GetEndpointIPAddress(incomingConnectionTcpClient.Client.RemoteEndPoint).ToString(), ProxyHelper.GetEndpointPort(incomingConnectionTcpClient.Client.RemoteEndPoint));
-                    statistics.Add(connection);//TODO: To change to an event and handle outside also to check values
+                    statistics.Add(connection);//TODO: To change to an event and handle outside
 
                     //Fire and forget processing of actual traffic, this will not block the current thread from processing new connections
                     Task newConnection = ProxyTraffic(incomingConnectionTcpClient, connection, endpointSetting, cancellationToken);
@@ -140,11 +140,8 @@ namespace ReverseProxyServer.Core
                             {
                                 //If actual data was received proceed with logging
                                 StringBuilder rawData = await ConvertMemoryStreamToString(tempMemory, cancellationToken);
-                                await (externalLogger?.LogInfoAsync($"Connection rejected and raw data logged. Request size [{tempMemory.Length} bytes]", connection.SessionId) ?? Task.CompletedTask);
-
-                                //Endpoint is set as debug, log request data in seperate log file with same session id
-                                if (settings.LogLevel == LogLevel.Debug)
-                                    await (externalLogger?.LogDebugAsync($"Request size [{tempMemory.Length} bytes] from {connectionInfo}{Environment.NewLine}{rawData.ToString().Trim()}", connection.SessionId) ?? Task.CompletedTask);
+                                await (externalLogger?.LogInfoAsync($"Connection from {connectionInfo} rejected logging raw data", connection.SessionId) ?? Task.CompletedTask);
+                                await (externalLogger?.LogRequestAsync($"Received data [{tempMemory.Length} bytes]{Environment.NewLine}{rawData.ToString().Trim()}", connection.SessionId) ?? Task.CompletedTask);
 
                                 rawData.Clear();
                             }
@@ -203,35 +200,34 @@ namespace ReverseProxyServer.Core
                 await (externalLogger?.LogErrorAsync($"Error handling normal traffic on port {connection.LocalPort}", ex, connection.SessionId) ?? Task.CompletedTask);
             }
         }
-        private async Task RelayDataAsync(NetworkStream inputStream, NetworkStream outputStream, IReverseProxyConnection connection, CommunicationDirection direction, CancellationToken cancellationToken)
+        private async Task RelayDataAsync(NetworkStream inputNetworkStream, NetworkStream outputNetworkStream, IReverseProxyConnection connection, CommunicationDirection direction, CancellationToken cancellationToken)
         {
             try
             {
-                using (MemoryStream rawDataPacket = new())
+                using MemoryStream rawDataPacket = new();
+                Memory<byte> buffer = new byte[settings.BufferSize];
+                int bytesRead;
+
+                while ((bytesRead = await inputNetworkStream.ReadAsyncWithTimeout(buffer, settings.ReceiveTimeout, cancellationToken)) > 0)
                 {
-                    Memory<byte> buffer = new byte[settings.BufferSize];
-                    int bytesRead;
+                    /*Duplex streaming of buffer data
+                     * First write to network stream (not to stop communication)
+                     * and then to memory to capture request data */
+                    await outputNetworkStream.WriteAsync(buffer[..bytesRead], cancellationToken);
+                    await rawDataPacket.WriteAsync(buffer[..bytesRead], cancellationToken);
 
-                    while ((bytesRead = await inputStream.ReadAsyncWithTimeout(buffer, settings.ReceiveTimeout, cancellationToken)) > 0)
+                    //Don't wait for all data to be transmitted before logging, stream usually waits
+                    if (!inputNetworkStream.DataAvailable)
                     {
-                        //First write to network stream
-                        await outputStream.WriteAsync(buffer[..bytesRead], cancellationToken);
-                        //Also write the same buffer to temp memory for logging purposes
-                        await rawDataPacket.WriteAsync(buffer[..bytesRead], cancellationToken);
-
-                        //Don't wait for all data to be transmitted before logging, stream usually waits
-                        if (!inputStream.DataAvailable)
+                        //Log incoming requests (Internet) raw data or both directions if debug logging enabled
+                        if (direction == CommunicationDirection.Incoming || settings.LogLevel == LogLevel.Debug)
                         {
+                            //Convert network stream data to string memory representation
                             StringBuilder rawPacket = await ConvertMemoryStreamToString(rawDataPacket, cancellationToken);
-                            await (externalLogger?.LogInfoAsync($"{direction} request size [{rawDataPacket.Length} bytes] {(direction == CommunicationDirection.Incoming ? "Raw data logged" : "")}", connection.SessionId) ?? Task.CompletedTask);
+                            string connectionInfo = ProxyHelper.GetConnectionInfoString(connection);
+                            await (externalLogger?.LogRequestAsync($"{direction} request size [{rawDataPacket.Length} bytes] from {connectionInfo} Raw data received;{Environment.NewLine}{rawPacket.ToString().Trim()}", connection.SessionId) ?? Task.CompletedTask);
 
-                            //Log only incoming requests raw data
-                            if (direction == CommunicationDirection.Incoming)
-                            {
-                                string connectionInfo = $"{inputStream.Socket.RemoteEndPoint?.ToString()} -> {outputStream.Socket.RemoteEndPoint?.ToString()}";
-                                await (externalLogger?.LogDebugAsync($"{direction} request size [{rawDataPacket.Length} bytes] from {connectionInfo} Raw data received;{Environment.NewLine}{rawPacket.ToString().Trim()}", connection.SessionId) ?? Task.CompletedTask);
-                            }
-                                            
+                            //TODO: To check if needed? clears memory after reading data
                             rawDataPacket.SetLength(0);
                             rawDataPacket.Position = 0;
                         }

@@ -18,6 +18,7 @@ public class FileLogger : BaseLogger, ILogger
     public Task LogInfoAsync(string message, string correlationId = "") => LogToFileAsync(message, LogLevel.Info, correlationId);
     public Task LogErrorAsync(string errorMessage, Exception? exception = null, string correlationId = "") =>
         LogToFileAsync($"{errorMessage} {(exception != null ? $"{exception.GetBaseException().GetType().Name} : {exception.GetBaseException().Message}" : "")}", LogLevel.Error, correlationId);
+    public Task LogRequestAsync(string message, string correlationId = "") => LogToFileAsync(message, LogLevel.Request, correlationId);
     public Task LogWarningAsync(string warningMessage, string correlationId = "") => LogToFileAsync(warningMessage, LogLevel.Warning, correlationId);
     public Task LogDebugAsync(string debugMessage, string correlationId = "") => LogToFileAsync(debugMessage, LogLevel.Debug, correlationId);
     private async Task LogToFileAsync(string entry, LogLevel messageLoggerLevel, string correlationId = "")
@@ -27,7 +28,7 @@ public class FileLogger : BaseLogger, ILogger
             await logSemaphore.WaitAsync();
             try
             {
-                await File.AppendAllTextAsync(logFilePath, GetLogEntry(entry, messageLoggerLevel, correlationId) + Environment.NewLine);
+                await File.AppendAllTextAsync(logFilePath, base.GetLogEntryHeader(messageLoggerLevel, correlationId) + " " + base.GetLogEntryMessage(entry) + Environment.NewLine);
             }
             finally
             {
