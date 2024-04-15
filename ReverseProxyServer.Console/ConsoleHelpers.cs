@@ -19,6 +19,8 @@ namespace ReverseProxyServer
             statisticsResult.AppendLine($"Proxy statistics");
             statisticsResult.AppendLine($"----------------");
             statisticsResult.AppendLine();
+            statisticsResult.AppendLine($"Proxy connections: {reverseProxy.Statistics.Count(s => s.ProxyType == Core.Enums.ProxyEnums.ReverseProxyType.Forward)}");
+            statisticsResult.AppendLine($"Honeypot connections: {reverseProxy.Statistics.Count(s => s.ProxyType == Core.Enums.ProxyEnums.ReverseProxyType.HoneyPot)}");
             statisticsResult.AppendLine($"Total connections: {reverseProxy.TotalConnectionsCount}");
             statisticsResult.AppendLine(GetActiveConnections(reverseProxy));
 

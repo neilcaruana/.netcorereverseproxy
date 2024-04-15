@@ -26,7 +26,6 @@ namespace ReverseProxyServer.Core.Interfaces
                 throw new InvalidOperationException("Invalid or unspecified Starting Port.");
             }
         }
-
         [JsonIgnore]
         public int ListeningEndingPort
         {
@@ -43,6 +42,13 @@ namespace ReverseProxyServer.Core.Interfaces
                     return endingPort;
                 }
                 throw new InvalidOperationException("Invalid or unspecified Ending Port.");
+            }
+        }
+        [JsonIgnore]
+        public bool IsPortRange
+        {
+            get {
+                return ListeningStartingPort < ListeningEndingPort;
             }
         }
         [JsonIgnore]
