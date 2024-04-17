@@ -47,8 +47,17 @@ namespace ReverseProxyServer.Core.Interfaces
         [JsonIgnore]
         public bool IsPortRange
         {
-            get {
+            get
+            {
                 return ListeningStartingPort < ListeningEndingPort;
+            }
+        }
+        [JsonIgnore]
+        public int TotalPorts
+        {
+            get
+            {
+                return (ListeningEndingPort - ListeningStartingPort) + 1;
             }
         }
         [JsonIgnore]
@@ -64,7 +73,7 @@ namespace ReverseProxyServer.Core.Interfaces
                     IPAddress? listeningIPAddress = Dns.GetHostAddresses(ListeningAddress).OrderBy(ip => ip.AddressFamily)
                                                                                           .FirstOrDefault(ip => ip.AddressFamily == AddressFamily.InterNetwork ||
                                                                                                                 ip.AddressFamily == AddressFamily.InterNetworkV6);
-                              
+
                     return listeningIPAddress ?? throw new Exception($"No DNS entries found to listen on {ListeningAddress}");
                 }
             }

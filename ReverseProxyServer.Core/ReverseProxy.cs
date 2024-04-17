@@ -46,7 +46,7 @@ namespace ReverseProxyServer.Core
                 {
                     listeners.Add(CreateEndpointListener(port, endpointSetting, cancellationToken));
                 }
-                string endpointLog = $"Reverse Proxy ({endpointSetting.ProxyType}) listening on {endpointSetting.ListeningAddress}" + (endpointSetting.IsPortRange ? $" ports {endpointSetting.ListeningPortRange}" : $" port {endpointSetting.ListeningStartingPort}") +  
+                string endpointLog = $"Reverse Proxy ({endpointSetting.ProxyType}) listening on {endpointSetting.ListeningAddress}" + (endpointSetting.IsPortRange ? $" ({endpointSetting.TotalPorts}) ports {endpointSetting.ListeningPortRange}" : $" port {endpointSetting.ListeningStartingPort}") +  
                                      (endpointSetting.ProxyType == ReverseProxyType.Forward ? $" -> {endpointSetting.TargetHost}:{endpointSetting.TargetPort}" : "");
                 await (externalLogger?.LogInfoAsync(endpointLog) ?? Task.CompletedTask);
             }
@@ -106,7 +106,7 @@ namespace ReverseProxyServer.Core
             {
                 //Stop the listener since the user wants to stop the server
                 listener?.Stop(); 
-                await (externalLogger?.LogInfoAsync($"Stopped listening on port {port}") ?? Task.CompletedTask);
+                await (externalLogger?.LogDebugAsync($"Stopped listening on port {port}") ?? Task.CompletedTask);
             }
         }
         private async Task ProxyTraffic(TcpClient incomingTcpClient, IReverseProxyConnection connection, IProxyEndpointConfig endPointSettings, CancellationToken cancellationToken)
