@@ -1,5 +1,4 @@
 ﻿using ReverseProxyServer.Core.Enums.ProxyEnums;
-using ReverseProxyServer.Data;
 using System.Globalization;
 using System.Text;
 
@@ -24,6 +23,16 @@ public class BaseLogger(LogLevel loggerLevel)
     {
         return entry;
     }
-
+    public string CleanNonPrintableChars(string str)
+    {
+        StringBuilder sb = new();
+        foreach (char c in str)
+        {
+            if (char.IsControl(c) && !char.IsWhiteSpace(c))
+                continue;
+            sb.Append(c);
+        }
+        return sb.ToString();
+    }
 
 }

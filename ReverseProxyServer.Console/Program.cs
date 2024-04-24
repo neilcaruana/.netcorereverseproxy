@@ -1,13 +1,8 @@
 ﻿using System.Runtime.InteropServices;
 using System.Text;
-using System.Text.Json.Serialization;
-using System.Text.Json;
 using ReverseProxyServer.Core;
-using ReverseProxyServer.Core.Helpers;
 using ReverseProxyServer.Core.Interfaces;
 using ReverseProxyServer.Core.Logging;
-using ReverseProxyServer.Data;
-using ReverseProxySever.Logging.Converters;
 using System.Net;
 
 namespace ReverseProxyServer
@@ -21,6 +16,7 @@ namespace ReverseProxyServer
             {
                 ConsoleHelpers.LoadSplashScreen();
                 Console.TreatControlCAsInput = true;
+                Console.OutputEncoding = Encoding.UTF8;
                 CancellationTokenSource cancellationTokenSource = new();
 
                 await logger.LogInfoAsync($"{Environment.OSVersion} {RuntimeInformation.FrameworkDescription}");
@@ -63,11 +59,11 @@ namespace ReverseProxyServer
                 while (!cancellationTokenSource.IsCancellationRequested);
 
                 await logger.LogWarningAsync($"Stopping Reverse proxy server...");
-                if (reverseProxy.PendingConnectionsCount > 0)
-                    await logger.LogWarningAsync($"Waiting for all tasks to finish [{reverseProxy.PendingConnectionsCount}]");
+                if (reverseProxy.ActiveConnections.Count() > 0)
+                    await logger.LogWarningAsync($"Waiting for all tasks to finish [{reverseProxy.ActiveConnections.Count()}]");
 
                 reverseProxy.Stop().Wait(TimeSpan.FromSeconds(10));
-                await logger.LogInfoAsync($"Stopped Reverse proxy server..." + (reverseProxy.PendingConnectionsCount > 0 ? $" Some tasks did not finish {reverseProxy.PendingConnectionsCount}" : ""));
+                await logger.LogInfoAsync($"Stopped Reverse proxy server..." + (reverseProxy.ActiveConnections.Count() > 0 ? $" Some tasks did not finish {reverseProxy.ActiveConnections.Count()}" : ""));
             }
             //TODO: handling of timeouts
             catch (Exception ex)

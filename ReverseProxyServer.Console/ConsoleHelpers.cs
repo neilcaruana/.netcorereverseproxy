@@ -1,7 +1,6 @@
 ﻿using ReverseProxyServer.Core;
 using ReverseProxyServer.Core.Helpers;
 using ReverseProxyServer.Core.Interfaces;
-using ReverseProxyServer.Core.Logging;
 using ReverseProxyServer.Data;
 using ReverseProxySever.Logging.Converters;
 using System.Runtime.InteropServices;
@@ -52,7 +51,7 @@ namespace ReverseProxyServer
         internal static string GetActiveConnections(ReverseProxy reverseProxy)
         {
             StringBuilder statisticsResult = new();
-            statisticsResult.AppendLine($"Active connections: {reverseProxy.PendingConnectionsCount}");
+            statisticsResult.AppendLine($"Active connections: {reverseProxy.ActiveConnections.Count()}");
             foreach (var activeConnection in reverseProxy.ActiveConnections)
             {
                 string cleanedConnectionInfo = $"[{activeConnection.SessionId}] {ProxyHelper.GetConnectionInfoString(activeConnection)}";

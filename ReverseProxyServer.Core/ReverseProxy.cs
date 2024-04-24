@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
@@ -12,11 +13,10 @@ namespace ReverseProxyServer.Core
     public class ReverseProxy
     {
         public int TotalConnectionsCount => statistics.Count;
-        public int PendingConnectionsCount => pendingConnections.Count;
         public IEnumerable<IReverseProxyConnection> Statistics => [.. statistics];
-        public IEnumerable<IReverseProxyConnection> ActiveConnections => [.. pendingConnections.Keys];
+        public IEnumerable<IReverseProxyConnection> ActiveConnections => [.. activeConnectionsInternal.Keys];
 
-        private ConcurrentDictionary<IReverseProxyConnection, Task> pendingConnections = [];
+        private ConcurrentDictionary<IReverseProxyConnection, Task> activeConnectionsInternal = [];
         private readonly ConcurrentBag<IReverseProxyConnection> statistics = [];
         private readonly IProxyConfig settings;
         private readonly IList<Task> listeners = [];
@@ -27,8 +27,8 @@ namespace ReverseProxyServer.Core
         {
             if (settings == null)
                 throw new ArgumentException("Settings cannot be null", nameof(settings));
-            
-            if (!settings.EndPoints.Any())                
+
+            if (!settings.EndPoints.Any())
                 throw new ArgumentException("No settings provided", nameof(settings.EndPoints));
 
             ProxySettingsValidator.Validate(settings);
@@ -44,15 +44,16 @@ namespace ReverseProxyServer.Core
                 //Create listener for every port in listening ports range
                 for (int port = endpointSetting.ListeningStartingPort; port <= endpointSetting.ListeningEndingPort; port++)
                 {
-                    listeners.Add(CreateEndpointListener(port, endpointSetting, cancellationToken));
+                    listeners.Add(CreateTcpListener(port, endpointSetting, cancellationToken));
                 }
-                string endpointLog = $"Reverse Proxy ({endpointSetting.ProxyType}) listening on {endpointSetting.ListeningAddress}" + (endpointSetting.IsPortRange ? $" ({endpointSetting.TotalPorts}) ports {endpointSetting.ListeningPortRange}" : $" port {endpointSetting.ListeningStartingPort}") +  
+
+                string endpointLog = $"Reverse Proxy ({endpointSetting.ProxyType}) listening on {endpointSetting.ListeningAddress}" + (endpointSetting.IsPortRange ? $" ({endpointSetting.TotalPorts}) ports {endpointSetting.ListeningPortRange}" : $" port {endpointSetting.ListeningStartingPort}") +
                                      (endpointSetting.ProxyType == ReverseProxyType.Forward ? $" -> {endpointSetting.TargetHost}:{endpointSetting.TargetPort}" : "");
                 await (externalLogger?.LogInfoAsync(endpointLog) ?? Task.CompletedTask);
             }
 
             //Start thread that cleans dictionary of closed connections 
-            _ = CleanCompletedConnectionsAsync(cancellationToken); 
+            _ = CleanCompletedConnectionsAsync(cancellationToken);
         }
         public async Task Stop()
         {
@@ -60,7 +61,7 @@ namespace ReverseProxyServer.Core
             await Task.WhenAll([.. listeners]).WaitAsync(TimeSpan.FromSeconds(10));
 
             //Wait for pending connections to finish with a timeout of 10 seconds
-            await Task.WhenAll([.. pendingConnections.Values]).WaitAsync(TimeSpan.FromSeconds(10));
+            await Task.WhenAll([.. activeConnectionsInternal.Values]).WaitAsync(TimeSpan.FromSeconds(10));
 
             //Clean pending connection tasks manually before exit, this is because clean-up thread has now exited
             CleanCompletedConnectionsInternal();
@@ -68,7 +69,7 @@ namespace ReverseProxyServer.Core
             //TODO: handling of timeouts
         }
 
-        private async Task CreateEndpointListener(int port, IProxyEndpointConfig endpointSetting, CancellationToken cancellationToken)
+        private async Task CreateTcpListener(int port, IProxyEndpointConfig endpointSetting, CancellationToken cancellationToken)
         {
             TcpListener? listener = null;
             try
@@ -77,7 +78,7 @@ namespace ReverseProxyServer.Core
                 listener.Start();
 
                 //Check for incoming connections until user needs to stop server
-                while (!cancellationToken.IsCancellationRequested) 
+                while (!cancellationToken.IsCancellationRequested)
                 {
                     TcpClient incomingTcpConnection = await listener.AcceptTcpClientAsync(cancellationToken);
 
@@ -88,9 +89,9 @@ namespace ReverseProxyServer.Core
 
                     //Fire and forget processing of actual traffic, this will not block the current thread from processing new connections
                     Task newConnection = ProxyTraffic(incomingTcpConnection, connection, endpointSetting, cancellationToken);
-                    
+
                     //Add connections to a thread safe dictionary to monitor and gracefully wait when exiting
-                    if (!pendingConnections.TryAdd(connection, newConnection))
+                    if (!activeConnectionsInternal.TryAdd(connection, newConnection))
                         throw new Exception($"Could not add to pending connection: [{ProxyHelper.GetConnectionInfoString(connection)}]");
                 }
             }
@@ -105,25 +106,25 @@ namespace ReverseProxyServer.Core
             finally
             {
                 //Stop the listener since the user wants to stop the server
-                listener?.Stop(); 
+                listener?.Stop();
                 await (externalLogger?.LogDebugAsync($"Stopped listening on port {port}") ?? Task.CompletedTask);
             }
         }
         private async Task ProxyTraffic(TcpClient incomingTcpClient, IReverseProxyConnection connection, IProxyEndpointConfig endPointSettings, CancellationToken cancellationToken)
         {
             try
-            {   
+            {
                 //Check if user requested to stop server
                 if (cancellationToken.IsCancellationRequested)
                     return;
-            
+
                 using (incomingTcpClient)
                 {
                     incomingTcpClient.ReceiveTimeout = settings.ReceiveTimeout;
                     incomingTcpClient.SendTimeout = settings.SendTimeout;
 
                     string connectionInfo = ProxyHelper.GetConnectionInfoString(connection);
-                    await (externalLogger?.LogInfoAsync($"Connection received from {connectionInfo}", connection.SessionId) ?? Task.CompletedTask);            
+                    await (externalLogger?.LogInfoAsync($"Connection received from {connectionInfo}", connection.SessionId) ?? Task.CompletedTask);
 
                     if (incomingTcpClient.Connected)
                     {
@@ -183,7 +184,7 @@ namespace ReverseProxyServer.Core
                         await (externalLogger?.LogWarningAsync("Incoming connection disconnected", connection.SessionId) ?? Task.CompletedTask);
                 }
             }
-            catch (IOException ex) when (ex.InnerException is SocketException socketEx && 
+            catch (IOException ex) when (ex.InnerException is SocketException socketEx &&
                                         (socketEx.SocketErrorCode == SocketError.ConnectionReset ||
                                          socketEx.SocketErrorCode == SocketError.ConnectionAborted))
             {
@@ -195,7 +196,7 @@ namespace ReverseProxyServer.Core
             }
             catch (Exception ex)
             {
-                await (externalLogger?.LogErrorAsync($"Error handling normal traffic on port {connection.LocalPort}", ex, connection.SessionId) ?? Task.CompletedTask);
+                await (externalLogger?.LogErrorAsync($"Error proxying traffic on port {connection.LocalPort}", ex, connection.SessionId) ?? Task.CompletedTask);
             }
         }
         private async Task RelayTraffic(NetworkStream inputNetworkStream, NetworkStream outputNetworkStream, IReverseProxyConnection connection, CommunicationDirection direction, CancellationToken cancellationToken)
@@ -309,16 +310,16 @@ namespace ReverseProxyServer.Core
         {
             ConcurrentDictionary<IReverseProxyConnection, Task> cleanedConnections = [];
             //Atomic operation to swap pending connections to empty cleaned connections, returning the current values
-            ConcurrentDictionary<IReverseProxyConnection, Task> tempPendingConnections = Interlocked.Exchange(ref pendingConnections, cleanedConnections);
+            ConcurrentDictionary<IReverseProxyConnection, Task> tempPendingConnections = Interlocked.Exchange(ref activeConnectionsInternal, cleanedConnections);
 
             foreach (var pendingConnection in tempPendingConnections)
             {
                 if (pendingConnection.Value.IsCompleted == false)
                 {
-                    if (!pendingConnections.TryAdd(pendingConnection.Key, pendingConnection.Value))
+                    if (!activeConnectionsInternal.TryAdd(pendingConnection.Key, pendingConnection.Value))
                         throw new Exception($"Could not clean connection: [{pendingConnection.Key}]");
                 }
-            }   
+            }
         }
     }
 }

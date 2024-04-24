@@ -12,7 +12,7 @@ public class ConsoleLogger(LogLevel logLevel) : BaseLogger(logLevel), ILogger
         await ConsoleLog($"{errorMessage} {(exception != null ? $"{exception.GetType().Name} : {exception.GetBaseException().Message}" : "")}", LogLevel.Error, ConsoleColor.Red, correlationId);
     public async Task LogWarningAsync(string warningMessage, string correlationId = "") => await ConsoleLog(warningMessage, LogLevel.Warning, ConsoleColor.Yellow, correlationId);
     public async Task LogDebugAsync(string debugMessage, string correlationId = "") => await ConsoleLog(debugMessage, LogLevel.Debug, ConsoleColor.Green, correlationId);
-    public async Task LogRequestAsync(string requestData, string correlationId = "") => await ConsoleLog(requestData, LogLevel.Request, ConsoleColor.Blue, correlationId);
+    public async Task LogRequestAsync(string requestData, string correlationId = "") => await ConsoleLog(base.CleanNonPrintableChars(requestData), LogLevel.Request, ConsoleColor.Blue, correlationId);
     private async Task ConsoleLog(string entry, LogLevel messageLoggerLevel, ConsoleColor? color = null, string correlationId = "")
     {
         if (messageLoggerLevel <= LoggerLevel)
