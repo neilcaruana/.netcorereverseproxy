@@ -14,18 +14,21 @@ namespace ReverseProxyServer
         {
             try
             {
-                ConsoleHelpers.LoadSplashScreen();
+                ConsoleHelper.LoadSplashScreen();
                 Console.TreatControlCAsInput = true;
                 Console.OutputEncoding = Encoding.UTF8;
                 CancellationTokenSource cancellationTokenSource = new();
 
                 await logger.LogInfoAsync($"{Environment.OSVersion} {RuntimeInformation.FrameworkDescription}");
                 await logger.LogInfoAsync("Loading settings...");
-                IProxyConfig settings = ConsoleHelpers.LoadProxySettings();
+                IProxyConfig settings = ConsoleHelper.LoadProxySettings();
 
                 await logger.LogInfoAsync($"Starting Reverse proxy server on {Dns.GetHostName()}");
                 //Start the reverse proxy with the specified setting
                 ReverseProxy reverseProxy = new(settings, cancellationTokenSource.Token, LoggerFactory.CreateCompositeLogger(settings.LogLevel));
+                reverseProxy.NewConnection += ReverseProxy_OnNewConnection;
+                reverseProxy.Notification += ReverseProxy_Notification;
+                reverseProxy.Error += ReverseProxy_Error;
                 reverseProxy.Start();
 
                  //Loop and check for user actions
@@ -39,15 +42,18 @@ namespace ReverseProxyServer
                             await logger.LogWarningAsync("Caught signal interrupt: shutting down server...");
                             cancellationTokenSource.Cancel();
                             break;
+                        case ConsoleKey.H:
+                            ConsoleHelper.DisplayHelp();
+                            break;
                         case ConsoleKey.S:
                             if (reverseProxy.TotalConnectionsCount > 0)
-                                await logger.LogInfoAsync(Environment.NewLine + ConsoleHelpers.DisplayStatistics(reverseProxy));
+                                await logger.LogInfoAsync(Environment.NewLine + ConsoleHelper.DisplayStatistics(reverseProxy));
                             else
                                 await logger.LogWarningAsync("No statistics generated");
                             break;
                         case ConsoleKey.A:
                             if (reverseProxy.ActiveConnections.Any())
-                                await logger.LogInfoAsync(Environment.NewLine+ ConsoleHelpers.GetActiveConnections(reverseProxy));
+                                await logger.LogInfoAsync(Environment.NewLine+ ConsoleHelper.GetActiveConnections(reverseProxy));
                             else
                                 await logger.LogWarningAsync("No active connections");
                             break;
@@ -59,17 +65,30 @@ namespace ReverseProxyServer
                 while (!cancellationTokenSource.IsCancellationRequested);
 
                 await logger.LogWarningAsync($"Stopping Reverse proxy server...");
-                if (reverseProxy.ActiveConnections.Count() > 0)
+                if (reverseProxy.ActiveConnections.Any())
                     await logger.LogWarningAsync($"Waiting for all tasks to finish [{reverseProxy.ActiveConnections.Count()}]");
 
                 reverseProxy.Stop().Wait(TimeSpan.FromSeconds(10));
-                await logger.LogInfoAsync($"Stopped Reverse proxy server..." + (reverseProxy.ActiveConnections.Count() > 0 ? $" Some tasks did not finish {reverseProxy.ActiveConnections.Count()}" : ""));
+                await logger.LogInfoAsync($"Stopped Reverse proxy server..." + (reverseProxy.ActiveConnections.Any() ? $" Some tasks did not finish {reverseProxy.ActiveConnections.Count()}" : ""));
             }
             //TODO: handling of timeouts
             catch (Exception ex)
             {
                 await logger.LogErrorAsync("General failure", ex);
             }
+        }
+
+        private static async Task ReverseProxy_Error(object sender, NotificationErrorEventArgs e)
+        {
+            await Task.CompletedTask;
+        }
+        private static async Task ReverseProxy_Notification(object sender, NotificationEventArgs e)
+        {
+            await Task.CompletedTask;
+        }
+        private static async Task ReverseProxy_OnNewConnection(object sender, ConnectionEventArgs e)
+        {
+            await Task.CompletedTask;
         }
     }
 }

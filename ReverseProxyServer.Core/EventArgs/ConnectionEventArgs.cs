@@ -1,13 +1,16 @@
 using ReverseProxyServer.Core.Enums.ProxyEnums;
 using ReverseProxyServer.Core.Interfaces;
 
-namespace ReverseProxyServer.Helpers
+namespace ReverseProxyServer.Core
 {
-    public record ConnectionInfo(DateTime connectionTime, string sessionId, ReverseProxyType reverseProxyType, string localAddress, int localPort, string targetHost, int targetPort, string remoteAddress, int remotePort) : IReverseProxyConnection
+    public class ConnectionEventArgs(DateTime connectionTime, string sessionId, ReverseProxyType reverseProxyType, CommunicationDirection communicationDirection,
+                                string localAddress, int localPort, string targetHost, int targetPort, string remoteAddress,
+                                int remotePort) : EventArgs, IReverseProxyConnection
     {
         public DateTime ConnectionTime { get; init; } = connectionTime;
         public string SessionId { get; init; } = sessionId;
         public ReverseProxyType ProxyType { get; init; } = reverseProxyType;
+        public CommunicationDirection CommunicationDirection { get; init; } = communicationDirection;
         public string LocalAddress { get; init; } = localAddress;
         public int LocalPort { get; init; } = localPort;
         public string TargetHost { get; init; } = targetHost;

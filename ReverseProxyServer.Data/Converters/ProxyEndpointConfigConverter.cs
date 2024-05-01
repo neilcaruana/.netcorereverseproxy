@@ -4,7 +4,7 @@ using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace ReverseProxySever.Logging.Converters
+namespace ReverseProxyServer.Logging.Converters
 {
     public class ProxyEndpointConfigConverter : JsonConverter<IProxyEndpointConfig>
     {

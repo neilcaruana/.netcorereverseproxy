@@ -2,7 +2,7 @@
 using ReverseProxyServer.Core.Helpers;
 using ReverseProxyServer.Core.Interfaces;
 using ReverseProxyServer.Data;
-using ReverseProxySever.Logging.Converters;
+using ReverseProxyServer.Logging.Converters;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
@@ -10,13 +10,13 @@ using System.Text.Json.Serialization;
 
 namespace ReverseProxyServer
 {
-    internal static class ConsoleHelpers
+    internal static class ConsoleHelper
     {
         internal static string DisplayStatistics(ReverseProxy reverseProxy)
         {
             StringBuilder statisticsResult = new();
-            statisticsResult.AppendLine($"Proxy statistics");
-            statisticsResult.AppendLine($"----------------");
+            statisticsResult.AppendLine($"ReverseProxy statistics");
+            statisticsResult.AppendLine($"-----------------------");
             statisticsResult.AppendLine();
             statisticsResult.AppendLine($"Proxy connections: {reverseProxy.Statistics.Count(s => s.ProxyType == Core.Enums.ProxyEnums.ReverseProxyType.Forward)}");
             statisticsResult.AppendLine($"Honeypot connections: {reverseProxy.Statistics.Count(s => s.ProxyType == Core.Enums.ProxyEnums.ReverseProxyType.HoneyPot)}");
@@ -48,13 +48,17 @@ namespace ReverseProxyServer
 
             return statisticsResult.ToString();
         }
+        internal static string DisplayHelp()
+        {
+            return "";
+        }
         internal static string GetActiveConnections(ReverseProxy reverseProxy)
         {
             StringBuilder statisticsResult = new();
             statisticsResult.AppendLine($"Active connections: {reverseProxy.ActiveConnections.Count()}");
             foreach (var activeConnection in reverseProxy.ActiveConnections)
             {
-                string cleanedConnectionInfo = $"[{activeConnection.SessionId}] {ProxyHelper.GetConnectionInfoString(activeConnection)}";
+                string cleanedConnectionInfo = $"[{activeConnection.SessionId}] {ProxyHelper.GetConnectionInfo(activeConnection)}";
                 statisticsResult.AppendLine("\t" + cleanedConnectionInfo + "\t" + "started " + ProxyHelper.CalculateLastSeen(activeConnection.ConnectionTime));
             }
             statisticsResult.AppendLine();
