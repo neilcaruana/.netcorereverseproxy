@@ -10,6 +10,7 @@ A lightweight reverse proxy and simple Honeypot in .NET 8, designed to proxy req
 * Asynchronous I/O: Leverages C#'s async/await for efficient network operations.
 * Task-based Asynchronous Pattern (TAP): Asynchronous programming is used extensively to efficiently handle all events including I/O and network operations.
 * Statistics: Provides a console report with active and historical connections by unique IP Addresses and ports.
+* AbuseIPDB: The top 100 most hit IPs can be cross referenced with the AbuseIPDB database for blacklisting scores.
 
 ## Configuration
 Listening endpoints can be configured through the appsettings.json file. Each entry within the Endpoints section represents a separate proxy endpoint configuration, including its own type, listening port ranges, target host, target port etc.
