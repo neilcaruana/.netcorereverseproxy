@@ -9,6 +9,7 @@ namespace ReverseProxyServer.Core
 {
     public class ReverseProxy
     {
+        public DateTime StartedOn => startedListeningOn;
         public int TotalConnectionsCount => statistics.Count;
         public IEnumerable<IReverseProxyConnection> Statistics => [.. statistics];
         public IEnumerable<IReverseProxyConnection> ActiveConnections => [.. activeConnectionsInternal.Keys];
@@ -19,6 +20,7 @@ namespace ReverseProxyServer.Core
         public event AsyncEventHandler<NotificationErrorEventArgs>? Error;
 
         private ConcurrentDictionary<IReverseProxyConnection, Task> activeConnectionsInternal = [];
+        private DateTime startedListeningOn;
         private readonly ConcurrentBag<IReverseProxyConnection> statistics = [];
         private readonly IProxyConfig settings;
         private readonly IList<Task> listeners = [];
@@ -46,15 +48,14 @@ namespace ReverseProxyServer.Core
             {
                 //Create listener for every port in listening ports range
                 for (int port = endpointSetting.ListeningStartingPort; port <= endpointSetting.ListeningEndingPort; port++)
-                {
                     listeners.Add(CreateTcpListener(port, endpointSetting, cancellationToken));
-                }
 
+                startedListeningOn = DateTime.Now;
                 string endpointLog = $"Reverse Proxy ({endpointSetting.ProxyType}) listening on {endpointSetting.ListeningAddress}" + (endpointSetting.IsPortRange ? $" ({endpointSetting.TotalPorts}) ports {endpointSetting.ListeningPortRange}" : $":{endpointSetting.ListeningStartingPort}") +
                                      (endpointSetting.ProxyType == ReverseProxyType.Forward ? $" » {endpointSetting.TargetHost}:{endpointSetting.TargetPort}" : "");
                 await OnNotification(endpointLog, string.Empty, LogLevel.Info);
             }
-
+            await OnNotification($"Listening on {listeners.Count.ToString("N0")} total ports", string.Empty, LogLevel.Info);
             //Start thread that cleans dictionary of closed connections 
             _ = CleanCompletedConnectionsAsync(cancellationToken);
         }

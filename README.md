@@ -6,9 +6,10 @@ An implements of a lightweight reverse proxy and simple Honeypot in .NET 8, desi
 * Support for a range of listening ports: Allowing parallel forward requests to different target servers based on configuration.
 * Logging: Log requests and responses for debugging and monitoring purposes.
 * Cancellation Support: Gracefully handle shutdown requests with proper cleanup.
-* Duplex Streaming: Real-time data processing with the ability to intercept and log data
+* Duplex Streaming: Real-time data processing with the ability to intercept and log data.
 * Asynchronous I/O: Leverages C#'s async/await for efficient network operations.
-* Statistics: Provides a console report with active and historical connections by unique IP Addresses and ports
+* Task-based Asynchronous Pattern (TAP): Asynchronous programming is used extensively to efficiently handle all events including I/O and network operations.
+* Statistics: Provides a console report with active and historical connections by unique IP Addresses and ports.
 
 ## Configuration
 Listening endpoints can be configured through the appsettings.json file. Each entry within the Endpoints section represents a separate proxy endpoint configuration, including its own type, listening port ranges, target host, target port etc.

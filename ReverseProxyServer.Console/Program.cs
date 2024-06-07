@@ -4,6 +4,9 @@ using ReverseProxyServer.Core;
 using ReverseProxyServer.Core.Interfaces;
 using ReverseProxyServer.Core.Logging;
 using System.Net;
+using ReverseProxyServer.Extensions.AbuseIPDB;
+using ReverseProxyServer.Extensions.AbuseIPDB.Data;
+using ReverseProxyServer.Core.Helpers;
 
 namespace ReverseProxyServer
 {
@@ -45,15 +48,31 @@ namespace ReverseProxyServer
                         case ConsoleKey.H:
                             ConsoleHelper.DisplayHelp();
                             break;
+                        case ConsoleKey.X:
+                            if (reverseProxy.TotalConnectionsCount > 0)
+                            {
+                                await foreach (string  result in ConsoleHelper.GetAbuseIPDBCrossReference(reverseProxy))
+                                {
+                                    await logger.LogInfoAsync(result);
+                                }
+                                await logger.LogInfoAsync("Search completed");
+                            }
+                            else
+                                await logger.LogWarningAsync("No connection history to check");
+                            break;
                         case ConsoleKey.S:
                             if (reverseProxy.TotalConnectionsCount > 0)
-                                await logger.LogInfoAsync(Environment.NewLine + ConsoleHelper.DisplayStatistics(reverseProxy));
+                            {
+                                List<String> stats = ConsoleHelper.GetStatistics(reverseProxy);
+                                //ConsoleHelper.DisplayWithPaging(stats);
+                                await logger.LogInfoAsync(Environment.NewLine + String.Join(Environment.NewLine, stats));
+                            }
                             else
                                 await logger.LogWarningAsync("No statistics generated");
                             break;
                         case ConsoleKey.A:
                             if (reverseProxy.ActiveConnections.Any())
-                                await logger.LogInfoAsync(Environment.NewLine+ ConsoleHelper.GetActiveConnections(reverseProxy));
+                                await logger.LogInfoAsync(Environment.NewLine + ConsoleHelper.GetActiveConnections(reverseProxy));
                             else
                                 await logger.LogWarningAsync("No active connections");
                             break;

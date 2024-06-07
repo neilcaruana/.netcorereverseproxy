@@ -54,10 +54,10 @@ public static class ProxyHelper
 
         return true;
     }
-    public static string CalculateLastSeen(DateTime lastConnectedTime)
+    public static string CalculateLastSeen(DateTime lastSeenDateTime)
     {
-        var delta = DateTime.Now - lastConnectedTime;
-        return $"{(delta.TotalDays >= 1 ? $"{(int)delta.TotalDays} day(s)" : delta.TotalHours >= 1 ? $"{(int)delta.TotalHours} hour(s)" : delta.TotalMinutes >= 1 ? $"{(int)delta.TotalMinutes} minute(s)" : $"{delta.Seconds} second(s)")} ago";
+        TimeSpan delta = DateTime.Now - lastSeenDateTime;
+        return $"{(delta.TotalDays >= 1 ? $"{(int)delta.TotalDays} day(s)" : delta.TotalHours >= 1 ? $"{(int)delta.TotalHours} hour(s)" : delta.TotalMinutes >= 1 ? $"{(int)delta.TotalMinutes} minute(s)" : $"{delta.Seconds} second(s)")}";
     }
     public static string GetExecutableFileName()
     {
