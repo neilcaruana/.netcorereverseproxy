@@ -98,7 +98,7 @@ namespace ReverseProxyServer.Extensions.AbuseIPDB.Data
         /// When the newest report for this IP address has been submitted.
         /// </summary>
         [JsonPropertyName("lastReportedAt")]
-        public DateTime LastReportedAt { get; set; }
+        public DateTime? LastReportedAt { get; set; }
 
         /// <summary>
         /// An array of <see cref="IPReport"/> containing the recent reports for this IP address. You can also use the <see cref="AbuseIPDBClient"/><c>.GetReports()</c> method.

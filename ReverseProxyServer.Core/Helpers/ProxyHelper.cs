@@ -54,9 +54,12 @@ public static class ProxyHelper
 
         return true;
     }
-    public static string CalculateLastSeen(DateTime lastSeenDateTime)
+    public static string CalculateLastSeen(DateTime? lastSeenDateTime)
     {
-        TimeSpan delta = DateTime.Now - lastSeenDateTime;
+        if (lastSeenDateTime == null)
+            return "[Null date]";
+
+        TimeSpan delta = DateTime.Now - (lastSeenDateTime ?? DateTime.Now);
         return $"{(delta.TotalDays >= 1 ? $"{(int)delta.TotalDays} day(s)" : delta.TotalHours >= 1 ? $"{(int)delta.TotalHours} hour(s)" : delta.TotalMinutes >= 1 ? $"{(int)delta.TotalMinutes} minute(s)" : $"{delta.Seconds} second(s)")}";
     }
     public static string GetExecutableFileName()

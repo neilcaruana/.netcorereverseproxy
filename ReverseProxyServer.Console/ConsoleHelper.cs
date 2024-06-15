@@ -10,6 +10,8 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Transactions;
+using System.Net.NetworkInformation;
 
 namespace ReverseProxyServer
 {
@@ -51,9 +53,18 @@ namespace ReverseProxyServer
 
             return statisticsResult;
         }
-        internal static string DisplayHelp()
+        internal static void DisplayHelp()
         {
-            return "";
+            Console.WriteLine("Help Menu");
+            Console.WriteLine("-------------------------------------------------");
+            Console.WriteLine("Ctrl+C           : Shutdown server");
+            Console.WriteLine("H                : Display this help menu");
+            Console.WriteLine("X                : Cross-reference connection history with AbuseIPDB");
+            Console.WriteLine("Z                : Check specific IP address with AbuseIPDB");
+            Console.WriteLine("S                : Display connection statistics");
+            Console.WriteLine("A                : Display active connections");
+            Console.WriteLine("-------------------------------------------------");
+            Console.WriteLine(Environment.NewLine);
         }
         internal static string GetActiveConnections(ReverseProxy reverseProxy)
         {
@@ -66,7 +77,7 @@ namespace ReverseProxyServer
             }
             return statisticsResult.ToString();
         }
-        internal async static IAsyncEnumerable<string> GetAbuseIPDBCrossReference(ReverseProxy reverseProxy)
+        internal async static IAsyncEnumerable<string> GetAbuseIPDBCrossReference(ReverseProxy reverseProxy, bool verbose = true, int days = 1)
         {
             AbuseIPDBClient abuseIPDBClient = new("346ec4585ffe5c587c34760fe79e3f4b4b3ddb7ba3376592e7cb26d6ffa44422c92e096bde8ea64f");
             yield return Environment.NewLine;
@@ -83,8 +94,8 @@ namespace ReverseProxyServer
             {
                 try
                 {
-                    CheckedIP checkedip = await abuseIPDBClient.CheckIP(remoteIP, true, 7);
-                    result = $"IP: {checkedip?.IPAddress?.PadRight(15, ' ')}  Confidence: {(checkedip?.AbuseConfidence.ToString() + "%").PadRight(4, ' ')}  Reports [7 days]: {checkedip?.TotalReports.ToString().PadRight(4, ' ')}  Country: {checkedip?.CountryCode}  Last reported: {ProxyHelper.CalculateLastSeen(checkedip.LastReportedAt)} ago";
+                    CheckedIP checkedip = await abuseIPDBClient.CheckIP(remoteIP, verbose, days);
+                    result = FormatAbuseIPDBCheckIP(checkedip, days);
                 }
                 catch (Exception ex) 
                 {
@@ -92,6 +103,10 @@ namespace ReverseProxyServer
                 }
                 yield return result;
             }
+        }
+        internal static string FormatAbuseIPDBCheckIP(CheckedIP checkedip, int days)
+        {
+            return $"IP: {checkedip?.IPAddress?.PadRight(15, ' ')}  Confidence: {(checkedip?.AbuseConfidence.ToString() + "%").PadRight(4, ' ')}  Reports [{days} day(s)]: {checkedip?.TotalReports.ToString().PadRight(4, ' ')}  Country: {checkedip?.CountryCode}  Last reported: {ProxyHelper.CalculateLastSeen(checkedip?.LastReportedAt)} ago";
         }
         internal static IProxyConfig LoadProxySettings()
         {
@@ -149,6 +164,22 @@ namespace ReverseProxyServer
                 Console.WriteLine(line);
                 _ = Task.Delay(100);
             }
+        }
+        internal static string ReadConsoleValueUntilEnter()
+        {
+            ConsoleKeyInfo keyInfo;
+            string data = "";
+            do
+            {
+                keyInfo = Console.ReadKey();
+                if (keyInfo.Key != ConsoleKey.Enter)
+                    data += keyInfo.KeyChar;
+
+            } while (keyInfo.Key != ConsoleKey.Enter);
+            Console.CursorLeft = 0;
+            Console.Write(new string(' ', 100));
+            Console.CursorLeft = 0;
+            return data;
         }
     }
 }

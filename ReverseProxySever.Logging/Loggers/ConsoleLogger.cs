@@ -20,7 +20,6 @@ public class ConsoleLogger(LogLevel logLevel) : BaseLogger(logLevel), ILogger
             await logSemaphore.WaitAsync();
             try
             {
-                Console.ResetColor();
                 Console.Write($"{base.GetLogEntryHeader(messageLoggerLevel, correlationId)} ");
 
                 if (color.HasValue)
@@ -31,6 +30,7 @@ public class ConsoleLogger(LogLevel logLevel) : BaseLogger(logLevel), ILogger
             finally
             {
                 logSemaphore.Release();
+                Console.ResetColor();
             }
         }
     }
