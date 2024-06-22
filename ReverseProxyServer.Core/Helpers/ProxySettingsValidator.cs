@@ -7,7 +7,7 @@ namespace ReverseProxyServer.Core.Helpers
     {
         public static void Validate(IProxyConfig settings)
         {
-            _ = settings ?? throw new ArgumentNullException("Settings cannot be null", nameof(settings));
+            _ = settings ?? throw new ArgumentNullException(nameof(settings), "Settings cannot be null");
 
             if (settings.EndPoints is null || !settings.EndPoints.Any())
                 throw new ArgumentException("No endpoints specified", nameof(settings.EndPoints));

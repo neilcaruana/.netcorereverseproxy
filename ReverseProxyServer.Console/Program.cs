@@ -4,17 +4,17 @@ using ReverseProxyServer.Core.Interfaces;
 using ReverseProxyServer.Core.Logging;
 using ReverseProxyServer.Extensions.AbuseIPDB;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Threading;
 
 namespace ReverseProxyServer
 {
     public class Program
     {
         private static ILogger logger = LoggerFactory.CreateDefaultCompositeLogger();
-        private static readonly SemaphoreSlim logSemaphore = new(1, 1);
         private static readonly CancellationTokenSource cancellationTokenSource = new();
+        private static readonly SemaphoreSlim logSemaphore = new(1, 1);
         public static async Task Main(string[] args)
         {
             try
@@ -74,11 +74,17 @@ namespace ReverseProxyServer
 
                                 Console.Write("Enter IP Address to check: ");
                                 string ip = ConsoleHelper.ReadConsoleValueUntilEnter();
-                                Console.Write("Enter number of days to check: ");
+                                if (!IPAddress.TryParse(ip, out IPAddress? ipAddress))
+                                {
+                                    Console.WriteLine($"Invalid IP Address: {ip}");
+                                    break;
+                                }
+                                Console.Write("Enter number of days for reports history : ");
 
                                 string numberOfDays = ConsoleHelper.ReadConsoleValueUntilEnter();
                                 int days = Convert.ToInt32(numberOfDays);
                                 await logger.LogInfoAsync(ConsoleHelper.FormatAbuseIPDBCheckIP(await abuseIPDBClient.CheckIP(ip, true), days));
+                                await Task.Delay(2000);
                                 break;
                             case ConsoleKey.S:
                                 await logSemaphore.WaitAsync(cancellationTokenSource.Token);
@@ -109,13 +115,13 @@ namespace ReverseProxyServer
                     }
                     finally
                     {
-                        if (logSemaphore.CurrentCount == 0) 
+                        if (logSemaphore.CurrentCount == 0)
                             logSemaphore.Release();
                     }
                 }
                 while (!cancellationTokenSource.IsCancellationRequested);
 
-                await logger.LogWarningAsync($"Stopping Reverse proxy server...");
+                await logger.LogInfoAsync($"Stopping Reverse proxy server...");
                 if (reverseProxy.ActiveConnections.Any())
                     await logger.LogWarningAsync($"Waiting for all tasks to finish [{reverseProxy.ActiveConnections.Count()}]");
 
@@ -131,14 +137,13 @@ namespace ReverseProxyServer
 
         private static async Task ReverseProxy_Error(object sender, NotificationErrorEventArgs e)
         {
-            await logSemaphore.WaitAsync();
+            await logSemaphore.WaitAsync(cancellationTokenSource.Token);
             await logger.LogErrorAsync(e.ErrorMessage, e.Exception, e.SessionId);
             logSemaphore.Release();
         }
         private static async Task ReverseProxy_Notification(object sender, NotificationEventArgs e)
         {
-            await logSemaphore.WaitAsync();
-
+            await logSemaphore.WaitAsync(cancellationTokenSource.Token);
             switch (e.LogLevel)
             {
                 case LogLevel.Info:
@@ -160,9 +165,7 @@ namespace ReverseProxyServer
         }
         private static async Task ReverseProxy_OnNewConnection(object sender, ConnectionEventArgs e)
         {
-            await logSemaphore.WaitAsync();
             await Task.CompletedTask;
-            logSemaphore.Release();
         }
     }
 }

@@ -172,10 +172,26 @@ namespace ReverseProxyServer
             do
             {
                 keyInfo = Console.ReadKey();
-                if (keyInfo.Key != ConsoleKey.Enter)
+
+                //On enter key stop the loop
+                if (keyInfo.Key == ConsoleKey.Enter)
+                    break;
+
+                //Remove last character from value
+                if (keyInfo.Key == ConsoleKey.Backspace)
+                {
+                    data = data[..^1];
+
+                    //Remove value from console
+                    Console.Write(' ');
+                    Console.CursorLeft -= 1;
+                }
+                else //Any other key, accept value
                     data += keyInfo.KeyChar;
 
             } while (keyInfo.Key != ConsoleKey.Enter);
+
+            //Reset line value in console, by overwriting with empty string
             Console.CursorLeft = 0;
             Console.Write(new string(' ', 100));
             Console.CursorLeft = 0;

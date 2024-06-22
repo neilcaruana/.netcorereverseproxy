@@ -15,7 +15,7 @@ namespace ReverseProxyServer.Data
         public int ReceiveTimeout { get; init; }
         public IEnumerable<IProxyEndpointConfig> EndPoints { get; init; }
 
-        public ProxyConfig() : base()
+        public ProxyConfig()
         {
             EndPoints = [];
         }

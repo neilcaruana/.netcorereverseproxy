@@ -97,7 +97,7 @@ namespace ReverseProxyServer.Core
             }
             catch (OperationCanceledException)
             {
-                await OnNotification("Operation cancelled: User requested to stop reverse proxy", string.Empty, LogLevel.Debug);
+                await OnNotification($"Operation cancelled on port {port}: User requested to stop reverse proxy", string.Empty, LogLevel.Debug);
             }
             catch (Exception ex)
             {
