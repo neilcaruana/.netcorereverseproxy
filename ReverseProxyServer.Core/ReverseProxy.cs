@@ -61,14 +61,21 @@ namespace ReverseProxyServer.Core
         }
         public async Task Stop()
         {
-            //Wait for listeners to stop with a timeout of 10 seconds
-            await Task.WhenAll([.. listeners]).WaitAsync(TimeSpan.FromSeconds(10));
+            try
+            {
+                //Wait for listeners to stop with a timeout of 10 seconds
+                await Task.WhenAll([.. listeners]).WaitAsync(TimeSpan.FromSeconds(30));
 
-            //Wait for pending connections to finish with a timeout of 10 seconds
-            await Task.WhenAll([.. activeConnectionsInternal.Values]).WaitAsync(TimeSpan.FromSeconds(10));
-
-            //Clean pending connection tasks manually before exit, this is because clean-up thread has now exited
-            CleanCompletedConnectionsInternal();
+                //Wait for pending connections to finish with a timeout of 10 seconds
+                await Task.WhenAll([.. activeConnectionsInternal.Values]).WaitAsync(TimeSpan.FromSeconds(30));
+                //Clean pending connection tasks manually before exit, this is because clean-up thread has now exited
+                CleanCompletedConnectionsInternal();
+            }
+            catch (Exception ex)
+            {
+                await OnError(ex.Message, string.Empty, ex);
+            }
+            
         }
 
         private async Task CreateTcpListener(int port, IProxyEndpointConfig endpointSetting, CancellationToken cancellationToken)
@@ -87,7 +94,7 @@ namespace ReverseProxyServer.Core
                     string sessionId = Guid.NewGuid().ToString()[..8];
                     ConnectionEventArgs connectionInfo = new(DateTime.Now, sessionId, endpointSetting.ProxyType, CommunicationDirection.Incoming, endpointSetting.ListeningAddress, port, endpointSetting.TargetHost, endpointSetting.TargetPort,
                                                     ProxyHelper.GetEndpointIPAddress(incomingTcpConnection.Client.RemoteEndPoint).ToString(), ProxyHelper.GetEndpointPort(incomingTcpConnection.Client.RemoteEndPoint));
-                    
+
                     //Fire and forget processing of actual traffic, this will not block the current thread from processing new connections
                     Task newConnection = ProxyTraffic(incomingTcpConnection, connectionInfo, endpointSetting, cancellationToken);
 

@@ -4,7 +4,7 @@ using ReverseProxyServer.Data;
 using ReverseProxyServer.Logging;
 
 namespace ReverseProxySever.Logging.Loggers;
-public class ConsoleLogger(LogLevel logLevel) : BaseLogger(logLevel), ILogger
+public class ConsoleLogger(LogLevel logLevel, CancellationToken cancellationToken) : BaseLogger(logLevel, cancellationToken), ILogger
 {
     private static readonly SemaphoreSlim logSemaphore = new(1, 1);
     public async Task LogInfoAsync(string message, string correlationId = "") => await ConsoleLog(message, LogLevel.Info, null, correlationId);
@@ -17,9 +17,9 @@ public class ConsoleLogger(LogLevel logLevel) : BaseLogger(logLevel), ILogger
     {
         if (messageLoggerLevel <= LoggerLevel)
         {
-            await logSemaphore.WaitAsync();
             try
             {
+                await logSemaphore.WaitAsync();
                 Console.Write($"{base.GetLogEntryHeader(messageLoggerLevel, correlationId)} ");
 
                 if (color.HasValue)
@@ -27,10 +27,14 @@ public class ConsoleLogger(LogLevel logLevel) : BaseLogger(logLevel), ILogger
 
                 Console.Write($"{base.GetLogEntryMessage(entry)}" + Environment.NewLine);
             }
+            catch (OperationCanceledException) { }
+            catch (AggregateException) { }
             finally
             {
-                logSemaphore.Release();
                 Console.ResetColor();
+
+                if (logSemaphore.CurrentCount == 0)
+                    logSemaphore.Release();
             }
         }
     }

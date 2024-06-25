@@ -17,26 +17,26 @@ namespace ReverseProxyServer
 {
     internal static class ConsoleHelper
     {
-        internal static List<String> GetStatistics(ReverseProxy reverseProxy)
+        internal static StringBuilder GetStatistics(ReverseProxy reverseProxy)
         {
-            List<String> statisticsResult = [];
-            statisticsResult.Add($"ReverseProxy statistics");
-            statisticsResult.Add($"-----------------------");
-            statisticsResult.Add($"Uptime: Running for {ProxyHelper.CalculateLastSeen(reverseProxy.StartedOn)}");
-            statisticsResult.Add($"Proxy connections: {reverseProxy.Statistics.Count(s => s.ProxyType == ReverseProxyType.Forward)}");
-            statisticsResult.Add($"Honeypot connections: {reverseProxy.Statistics.Count(s => s.ProxyType == ReverseProxyType.HoneyPot)}");
-            statisticsResult.Add($"Total connections: {reverseProxy.TotalConnectionsCount}");
-            statisticsResult.Add(GetActiveConnections(reverseProxy));
+            StringBuilder statisticsResult = new();
+            statisticsResult.AppendLine($"ReverseProxy statistics");
+            statisticsResult.AppendLine($"-----------------------");
+            statisticsResult.AppendLine($"Uptime: Running for {ProxyHelper.CalculateLastSeen(reverseProxy.StartedOn)}");
+            statisticsResult.AppendLine($"Proxy connections: {reverseProxy.Statistics.Count(s => s.ProxyType == ReverseProxyType.Forward)}");
+            statisticsResult.AppendLine($"Honeypot connections: {reverseProxy.Statistics.Count(s => s.ProxyType == ReverseProxyType.HoneyPot)}");
+            statisticsResult.AppendLine($"Total connections: {reverseProxy.TotalConnectionsCount}");
+            statisticsResult.AppendLine(GetActiveConnections(reverseProxy));
 
             var groupByRemoteIPs = reverseProxy.Statistics
                                                 .GroupBy(stat => stat.RemoteAddress)
                                                 .Select(group => new { RemoteAddress = group.Key, Count = group.Count(), LastConnectTime = group.Max(stat => stat.ConnectionTime) })
                                                 .OrderByDescending(group => group.Count);
 
-            statisticsResult.Add($"Hits by Unique IPs [{groupByRemoteIPs.Count()}]");
+            statisticsResult.AppendLine($"Hits by Unique IPs [{groupByRemoteIPs.Count()}]");
             foreach (var item in groupByRemoteIPs)
             {
-                statisticsResult.Add($"\tIP: {item.RemoteAddress,-15} hit {item.Count:N0}x last seen {ProxyHelper.CalculateLastSeen(item.LastConnectTime)} ago");
+                statisticsResult.AppendLine($"\tIP: {item.RemoteAddress,-15} hit {item.Count:N0}x last seen {ProxyHelper.CalculateLastSeen(item.LastConnectTime)} ago");
             }
 
             var groupByLocalPorts = reverseProxy.Statistics
@@ -44,11 +44,11 @@ namespace ReverseProxyServer
                                                 .Select(group => new { LocalPort = group.Key, Count = group.Count(), LastConnectTime = group.Max(stat => stat.ConnectionTime) })
                                                 .OrderByDescending(group => group.Count);
 
-            statisticsResult.Add(Environment.NewLine);
-            statisticsResult.Add($"Hits by Unique Ports [{groupByLocalPorts.Count()}]");
+            statisticsResult.AppendLine(Environment.NewLine);
+            statisticsResult.AppendLine($"Hits by Unique Ports [{groupByLocalPorts.Count()}]");
             foreach (var item in groupByLocalPorts)
             {
-                statisticsResult.Add($"\tPort: {item.LocalPort.ToString().PadRight(3, ' ')} hit {item.Count.ToString("N0")}x last hit {ProxyHelper.CalculateLastSeen(item.LastConnectTime)} ago");
+                statisticsResult.AppendLine($"\tPort: {item.LocalPort.ToString().PadRight(3, ' ')} hit {item.Count.ToString("N0")}x last hit {ProxyHelper.CalculateLastSeen(item.LastConnectTime)} ago");
             }
 
             return statisticsResult;
@@ -97,7 +97,7 @@ namespace ReverseProxyServer
                     CheckedIP checkedip = await abuseIPDBClient.CheckIP(remoteIP, verbose, days);
                     result = FormatAbuseIPDBCheckIP(checkedip, days);
                 }
-                catch (Exception ex) 
+                catch (Exception ex)
                 {
                     result = $"Error when requesting info on IP {remoteIP}. {ex.GetBaseException().Message}";
                 }

@@ -13,7 +13,8 @@ namespace ReverseProxyServer
     public class Program
     {
         private static ILogger logger = LoggerFactory.CreateDefaultCompositeLogger();
-        private static readonly CancellationTokenSource cancellationTokenSource = new();
+        private static readonly CancellationTokenSource reverseProxyCancellationSource = new();
+        private static readonly CancellationTokenSource logCancellationSource = new();
         private static readonly SemaphoreSlim logSemaphore = new(1, 1);
         public static async Task Main(string[] args)
         {
@@ -27,11 +28,11 @@ namespace ReverseProxyServer
                 await logger.LogInfoAsync("Loading settings...");
 
                 IProxyConfig settings = ConsoleHelper.LoadProxySettings();
-                logger = LoggerFactory.CreateCompositeLogger(settings.LogLevel);
+                logger = LoggerFactory.CreateCompositeLogger(settings.LogLevel, logCancellationSource.Token);
 
                 await logger.LogInfoAsync($"Starting Reverse proxy server on {Dns.GetHostName()}");
                 //Start the reverse proxy with the specified setting
-                ReverseProxy reverseProxy = new(settings, cancellationTokenSource.Token);
+                ReverseProxy reverseProxy = new(settings, reverseProxyCancellationSource.Token);
 
                 reverseProxy.NewConnection += ReverseProxy_OnNewConnection;
                 reverseProxy.Notification += ReverseProxy_Notification;
@@ -49,14 +50,14 @@ namespace ReverseProxyServer
                             //Handle Ctrl+C
                             case ConsoleKey.C when keyPressedInfo.Modifiers == ConsoleModifiers.Control:
                                 await logger.LogWarningAsync("Caught signal interrupt: shutting down server...");
-                                cancellationTokenSource.Cancel();
+                                await reverseProxyCancellationSource.CancelAsync();
                                 break;
                             case ConsoleKey.H:
-                                await logSemaphore.WaitAsync(cancellationTokenSource.Token);
+                                await logSemaphore.WaitAsync(logCancellationSource.Token);
                                 ConsoleHelper.DisplayHelp();
                                 break;
                             case ConsoleKey.X:
-                                await logSemaphore.WaitAsync(cancellationTokenSource.Token);
+                                await logSemaphore.WaitAsync(logCancellationSource.Token);
                                 if (reverseProxy.TotalConnectionsCount > 0)
                                 {
                                     await foreach (string result in ConsoleHelper.GetAbuseIPDBCrossReference(reverseProxy, true, 1))
@@ -69,7 +70,7 @@ namespace ReverseProxyServer
                                     await logger.LogWarningAsync("No connection history to check");
                                 break;
                             case ConsoleKey.Z when keyPressedInfo.Modifiers == ConsoleModifiers.None:
-                                await logSemaphore.WaitAsync(cancellationTokenSource.Token);
+                                await logSemaphore.WaitAsync(logCancellationSource.Token);
                                 AbuseIPDBClient abuseIPDBClient = new("346ec4585ffe5c587c34760fe79e3f4b4b3ddb7ba3376592e7cb26d6ffa44422c92e096bde8ea64f");
 
                                 Console.Write("Enter IP Address to check: ");
@@ -87,27 +88,37 @@ namespace ReverseProxyServer
                                 await Task.Delay(2000);
                                 break;
                             case ConsoleKey.S:
-                                await logSemaphore.WaitAsync(cancellationTokenSource.Token);
+                                await logSemaphore.WaitAsync(logCancellationSource.Token);
                                 if (reverseProxy.TotalConnectionsCount > 0)
                                 {
-                                    List<String> stats = ConsoleHelper.GetStatistics(reverseProxy);
-                                    //ConsoleHelper.DisplayWithPaging(stats);
+                                    StringBuilder stats = ConsoleHelper.GetStatistics(reverseProxy);
                                     await logger.LogInfoAsync(Environment.NewLine + String.Join(Environment.NewLine, stats));
+
+                                    //Logic to scroll to top of report after displaying results
+                                    int cursorBeforeScroll = Console.CursorTop;
+                                    Console.SetCursorPosition(Console.CursorLeft, Console.CursorTop - stats.ToString().Split(Environment.NewLine).Length);
+                                    //Wait for 5 seconds before log continues
+                                    await Task.Delay(5000);
+                                    Console.SetCursorPosition(Console.CursorLeft, cursorBeforeScroll);
                                 }
                                 else
-                                    await logger.LogWarningAsync("No statistics generated");
+                                    await logger.LogInfoAsync("No statistics generated");
                                 break;
                             case ConsoleKey.A:
-                                await logSemaphore.WaitAsync(cancellationTokenSource.Token);
+                                await logSemaphore.WaitAsync(logCancellationSource.Token);
                                 if (reverseProxy.ActiveConnections.Any())
                                     await logger.LogInfoAsync(Environment.NewLine + ConsoleHelper.GetActiveConnections(reverseProxy));
                                 else
-                                    await logger.LogWarningAsync("No active connections");
+                                    await logger.LogInfoAsync("No active connections");
                                 break;
                             default:
                                 await logger.LogWarningAsync($"Press Ctrl+C to shutdown server or h for help");
                                 break;
                         }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        await logger.LogDebugAsync($"Operation cancelled [Console operations]: User requested to stop reverse proxy");
                     }
                     catch (Exception ex)
                     {
@@ -119,31 +130,40 @@ namespace ReverseProxyServer
                             logSemaphore.Release();
                     }
                 }
-                while (!cancellationTokenSource.IsCancellationRequested);
+                while (!reverseProxyCancellationSource.IsCancellationRequested);
 
                 await logger.LogInfoAsync($"Stopping Reverse proxy server...");
                 if (reverseProxy.ActiveConnections.Any())
-                    await logger.LogWarningAsync($"Waiting for all tasks to finish [{reverseProxy.ActiveConnections.Count()}]");
+                    await logger.LogInfoAsync($"Waiting for all tasks to finish [{reverseProxy.ActiveConnections.Count()}]");
 
-                reverseProxy.Stop().Wait(TimeSpan.FromSeconds(10));
+                reverseProxy.Stop().Wait(TimeSpan.FromSeconds(60));
                 await logger.LogInfoAsync($"Stopped Reverse proxy server..." + (reverseProxy.ActiveConnections.Any() ? $" Some tasks did not finish {reverseProxy.ActiveConnections.Count()}" : ""));
+
+                //Cancel all logging operations
+                logCancellationSource.Cancel();
             }
-            //TODO: handling of timeouts
+            catch (OperationCanceledException)
+            {
+                await logger.LogDebugAsync($"Operation cancelled [General]: User requested to stop reverse proxy");
+            }
             catch (Exception ex)
             {
-                await logger.LogErrorAsync("General failure", ex);
+                await logger.LogErrorAsync("General failure" + ex.Message + Environment.NewLine + ex.StackTrace + Environment.NewLine + ex.GetBaseException().Message + Environment.NewLine + ex.GetBaseException().StackTrace, ex);
             }
         }
 
         private static async Task ReverseProxy_Error(object sender, NotificationErrorEventArgs e)
         {
-            await logSemaphore.WaitAsync(cancellationTokenSource.Token);
+            await logSemaphore.WaitAsync(logCancellationSource.Token);
+
             await logger.LogErrorAsync(e.ErrorMessage, e.Exception, e.SessionId);
-            logSemaphore.Release();
+
+            if (logSemaphore.CurrentCount == 0)
+                logSemaphore.Release();
         }
         private static async Task ReverseProxy_Notification(object sender, NotificationEventArgs e)
         {
-            await logSemaphore.WaitAsync(cancellationTokenSource.Token);
+            await logSemaphore.WaitAsync(logCancellationSource.Token);
             switch (e.LogLevel)
             {
                 case LogLevel.Info:
@@ -161,7 +181,9 @@ namespace ReverseProxyServer
                 default:
                     throw new Exception($"Not supported {e.LogLevel}");
             }
-            logSemaphore.Release();
+
+            if (logSemaphore.CurrentCount == 0)
+                logSemaphore.Release();
         }
         private static async Task ReverseProxy_OnNewConnection(object sender, ConnectionEventArgs e)
         {

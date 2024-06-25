@@ -1,6 +1,7 @@
 ﻿using ReverseProxyServer.Core.Enums.ProxyEnums;
 using ReverseProxyServer.Core.Interfaces;
 using ReverseProxyServer.Logging;
+using System.Text;
 
 namespace ReverseProxySever.Logging.Loggers;
 public class FileLogger : BaseLogger, ILogger
@@ -8,7 +9,7 @@ public class FileLogger : BaseLogger, ILogger
     private readonly string logFilePath = "";
     private static readonly SemaphoreSlim logSemaphore = new(1, 1);
 
-    public FileLogger(LogLevel loggerLevel, string logFilename) : base(loggerLevel)
+    public FileLogger(LogLevel loggerLevel, string logFilename, CancellationToken cancellationToken = default) : base(loggerLevel, cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(logFilename))
             logFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "main.log");
@@ -25,14 +26,19 @@ public class FileLogger : BaseLogger, ILogger
     {
         if (messageLoggerLevel <= LoggerLevel)
         {
-            await logSemaphore.WaitAsync();
             try
             {
-                await File.AppendAllTextAsync(logFilePath, base.GetLogEntryHeader(messageLoggerLevel, correlationId) + " " + base.GetLogEntryMessage(entry) + Environment.NewLine);
+                await logSemaphore.WaitAsync();
+                await File.AppendAllTextAsync(logFilePath, base.GetLogEntryHeader(messageLoggerLevel, correlationId) + " " + base.GetLogEntryMessage(entry) + Environment.NewLine, Encoding.UTF8);
+            }
+            catch (OperationCanceledException) { }
+            catch (AggregateException ex ) {
+                throw new Exception("HERE!!!!", ex);
             }
             finally
             {
-                logSemaphore.Release();
+                if (logSemaphore.CurrentCount == 0)
+                    logSemaphore.Release();
             }
         }
     }
