@@ -4,10 +4,19 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+	<FileVersion>1.6.0</FileVersion>
   </PropertyGroup>
   <ItemGroup>
+    <None Remove="Resources\CreateDatabase.sql" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\CreateDatabase.sql" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\ReverseProxyServer.Core\ReverseProxyServer.Core.csproj" />
+    <ProjectReference Include="..\ReverseProxyServer.Data.Sqlite\ReverseProxyServer.Data.Sqlite.csproj" />
     <ProjectReference Include="..\ReverseProxyServer.Extensions.AbuseIPDB\ReverseProxyServer.Extensions.AbuseIPDB.csproj" />
+    <ProjectReference Include="..\ReverseProxyServer.Repositories\ReverseProxyServer.Repositories.csproj" />
     <ProjectReference Include="..\ReverseProxySever.Logging\ReverseProxySever.Logging.csproj" />
   </ItemGroup>
   <ItemGroup>

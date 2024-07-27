@@ -10,22 +10,23 @@ namespace ReverseProxyServer.Core
     public class ReverseProxy
     {
         public DateTime StartedOn => startedListeningOn;
-        public int TotalConnectionsCount => statistics.Count;
-        public IEnumerable<IReverseProxyConnection> Statistics => [.. statistics];
+        public int TotalConnectionsReceived => totalConnectionsReceived;
         public IEnumerable<IReverseProxyConnection> ActiveConnections => [.. activeConnectionsInternal.Keys];
 
         public delegate Task AsyncEventHandler<TEventArgs>(object sender, TEventArgs e) where TEventArgs : EventArgs;
         public event AsyncEventHandler<ConnectionEventArgs>? NewConnection;
+        public event AsyncEventHandler<ConnectionDataEventArgs>? NewConnectionData;
         public event AsyncEventHandler<NotificationEventArgs>? Notification;
         public event AsyncEventHandler<NotificationErrorEventArgs>? Error;
 
         private ConcurrentDictionary<IReverseProxyConnection, Task> activeConnectionsInternal = [];
         private DateTime startedListeningOn;
-        private readonly ConcurrentBag<IReverseProxyConnection> statistics = [];
+        private int totalConnectionsReceived;
         private readonly IProxyConfig settings;
         private readonly IList<Task> listeners = [];
         private readonly CancellationToken cancellationToken = new();
         private readonly ILogger? externalLogger;
+        private readonly SemaphoreSlim pauseNotifications = new(1, 1);
 
         public ReverseProxy(IProxyConfig settings, CancellationToken cancellationToken, ILogger? externalLogger = null)
         {
@@ -44,18 +45,26 @@ namespace ReverseProxyServer.Core
 
         public async void Start()
         {
+            startedListeningOn = DateTime.Now;
+
+            //Pause new connection log notifications under proxy is listening on all ports 
+            await pauseNotifications.WaitAsync(cancellationToken);
+
             foreach (IProxyEndpointConfig endpointSetting in settings.EndPoints)
             {
                 //Create listener for every port in listening ports range
                 for (int port = endpointSetting.ListeningStartingPort; port <= endpointSetting.ListeningEndingPort; port++)
                     listeners.Add(CreateTcpListener(port, endpointSetting, cancellationToken));
 
-                startedListeningOn = DateTime.Now;
                 string endpointLog = $"Reverse Proxy ({endpointSetting.ProxyType}) listening on {endpointSetting.ListeningAddress}" + (endpointSetting.IsPortRange ? $" ({endpointSetting.TotalPorts}) ports {endpointSetting.ListeningPortRange}" : $":{endpointSetting.ListeningStartingPort}") +
                                      (endpointSetting.ProxyType == ReverseProxyType.Forward ? $" » {endpointSetting.TargetHost}:{endpointSetting.TargetPort}" : "");
                 await OnNotification(endpointLog, string.Empty, LogLevel.Info);
             }
             await OnNotification($"Listening on {listeners.Count.ToString("N0")} total ports", string.Empty, LogLevel.Info);
+
+            //Continue new connection notifications
+            pauseNotifications.Release();
+
             //Start thread that cleans dictionary of closed connections 
             _ = CleanCompletedConnectionsAsync(cancellationToken);
         }
@@ -75,7 +84,7 @@ namespace ReverseProxyServer.Core
             {
                 await OnError(ex.Message, string.Empty, ex);
             }
-            
+
         }
 
         private async Task CreateTcpListener(int port, IProxyEndpointConfig endpointSetting, CancellationToken cancellationToken)
@@ -91,6 +100,7 @@ namespace ReverseProxyServer.Core
                 {
                     TcpClient incomingTcpConnection = await listener.AcceptTcpClientAsync(cancellationToken);
 
+                    totalConnectionsReceived += 1; //Internal counter of all the connections received
                     string sessionId = Guid.NewGuid().ToString()[..8];
                     ConnectionEventArgs connectionInfo = new(DateTime.Now, sessionId, endpointSetting.ProxyType, CommunicationDirection.Incoming, endpointSetting.ListeningAddress, port, endpointSetting.TargetHost, endpointSetting.TargetPort,
                                                     ProxyHelper.GetEndpointIPAddress(incomingTcpConnection.Client.RemoteEndPoint).ToString(), ProxyHelper.GetEndpointPort(incomingTcpConnection.Client.RemoteEndPoint));
@@ -145,11 +155,11 @@ namespace ReverseProxyServer.Core
                             if (tempMemory.Length > 0)
                             {
                                 //If actual data was received proceed with logging
-                                StringBuilder rawData = await ConvertMemoryStreamToString(tempMemory, cancellationToken);
+                                StringBuilder rawPacket = await ConvertMemoryStreamToString(tempMemory, cancellationToken);
                                 await OnNotification($"Connection dropped from {connectionInfo} logging raw data", connection.SessionId, LogLevel.Info);
-                                await OnNotification($"Received data [{tempMemory.Length} bytes]{Environment.NewLine}{rawData.ToString().Trim()}", connection.SessionId, LogLevel.Request);
-
-                                rawData.Clear();
+                                await OnNotification($"Received data [{tempMemory.Length} bytes]{Environment.NewLine}{rawPacket.ToString().Trim()}", connection.SessionId, LogLevel.Request);
+                                await OnNewConnectionData(new ConnectionDataEventArgs(connection.SessionId, "Incoming", rawPacket));
+                                rawPacket.Clear();
                             }
                             else
                             {
@@ -224,17 +234,15 @@ namespace ReverseProxyServer.Core
                     await outputNetworkStream.WriteAsync(buffer[..bytesRead], cancellationToken);
                     await rawDataPacket.WriteAsync(buffer[..bytesRead], cancellationToken);
 
-                    //Don't wait for all data to be transmitted before logging, stream usually waits
+                    //Don't wait for all data to be transmitted before logging, stream usually waits (Code execution stops)
                     if (!inputNetworkStream.DataAvailable)
                     {
-                        //Log incoming requests (Internet) raw data or both directions if debug logging enabled
-                        if (direction == CommunicationDirection.Incoming || settings.LogLevel == LogLevel.Debug)
-                        {
-                            //Convert network stream data to string memory representation
-                            StringBuilder rawPacket = await ConvertMemoryStreamToString(rawDataPacket, cancellationToken);
-                            string connectionInfo = ProxyHelper.GetConnectionInfo(connection, direction);
-                            await OnNotification($"{direction} request size [{rawDataPacket.Length} bytes] from {connectionInfo}{Environment.NewLine}{rawPacket.ToString().Trim()}", connection.SessionId, LogLevel.Request);
-                        }
+                        //Convert network stream data to string memory representation
+                        StringBuilder rawPacket = await ConvertMemoryStreamToString(rawDataPacket, cancellationToken);
+                        string connectionInfo = ProxyHelper.GetConnectionInfo(connection, direction);
+                        await OnNotification($"{direction} request size [{rawDataPacket.Length} bytes] from {connectionInfo}{Environment.NewLine}{rawPacket.ToString().Trim()}", connection.SessionId, LogLevel.Request);
+                        await OnNewConnectionData(new ConnectionDataEventArgs(connection.SessionId, direction.ToString(), rawPacket));
+                        //TODO: Add event to send raw data
                     }
                 }
             }
@@ -329,15 +337,21 @@ namespace ReverseProxyServer.Core
 
         private async Task OnNewConnection(Task newConnection, ConnectionEventArgs connectionInfo)
         {
-            //TODO: Remove from memory and handle outside, save to DB
-            statistics.Add(connectionInfo);
-
             //Add connections to a thread safe dictionary to monitor and gracefully wait when exiting
             if (!activeConnectionsInternal.TryAdd(connectionInfo, newConnection))
                 throw new Exception($"Could not add to pending connection: [{ProxyHelper.GetConnectionInfo(connectionInfo)}]");
 
+            await pauseNotifications.WaitAsync(cancellationToken);
+
             //Get all handlers of NewConnection event and call them async
             await ProxyHelper.RaiseEventAsync(NewConnection, this, connectionInfo);
+
+            pauseNotifications.Release();
+        }
+        private async Task OnNewConnectionData(ConnectionDataEventArgs connectionData)
+        {
+            //Get all handlers of NewConnection event and call them async
+            await ProxyHelper.RaiseEventAsync(NewConnectionData, this, connectionData);
         }
         private async Task OnNotification(string notificationMessage, string sessionId, LogLevel logLevel)
         {

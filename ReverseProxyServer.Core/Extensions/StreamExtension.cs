@@ -2,6 +2,15 @@
 {
     public static class StreamExtension
     {
+        /// <summary>
+        /// Extension method of the ReadAsync to support timeouts, as sometimes the read hangs when waiting remote servers to send data
+        /// </summary>
+        /// <param name="stream"></param>
+        /// <param name="buffer"></param>
+        /// <param name="timeoutInSeconds"></param>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
+        /// <exception cref="TimeoutException"></exception>
         public static async Task<int> ReadAsyncWithTimeout(this Stream stream, Memory<byte> buffer, int timeoutInSeconds, CancellationToken cancellationToken)
         {
             // Create a task that completes after a specified timeout period

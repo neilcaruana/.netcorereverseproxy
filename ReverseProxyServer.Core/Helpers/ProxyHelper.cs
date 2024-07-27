@@ -2,6 +2,7 @@
 using ReverseProxyServer.Core.Interfaces;
 using System.Diagnostics;
 using System.Net;
+using System.Reflection;
 using static ReverseProxyServer.Core.ReverseProxy;
 
 namespace ReverseProxyServer.Core.Helpers;
@@ -69,6 +70,17 @@ public static class ProxyHelper
             return "";
         else 
             return ModuleHandle.FileName;
+    }
+    public static string ReadResourceFile(string resourceFullName)
+    {
+        var assembly = Assembly.GetCallingAssembly();
+
+        using Stream? stream = assembly.GetManifestResourceStream(resourceFullName);
+        if (stream == null)
+            throw new FileNotFoundException($"Resource {resourceFullName} not found.");
+
+        using StreamReader reader = new StreamReader(stream);
+        return reader.ReadToEnd();
     }
     public static async Task RaiseEventAsync<TEventArgs>(AsyncEventHandler<TEventArgs>? eventHandler, object sender, TEventArgs e) where TEventArgs : EventArgs
     {

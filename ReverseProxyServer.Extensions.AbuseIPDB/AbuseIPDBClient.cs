@@ -12,7 +12,6 @@ using System.Web;
 
 namespace ReverseProxyServer.Extensions.AbuseIPDB
 {
-    //API Key: 346ec4585ffe5c587c34760fe79e3f4b4b3ddb7ba3376592e7cb26d6ffa44422c92e096bde8ea64f
     public class AbuseIPDBClient
     {
         private static readonly Uri BaseUri = new($"https://api.abuseipdb.com/api/v2/");
@@ -48,6 +47,7 @@ namespace ReverseProxyServer.Extensions.AbuseIPDB
             if (maxAge <= 0) throw new ArgumentOutOfRangeException(nameof(maxAge), "Max age has to be a positive value.");
 
             HttpResponseMessage res = await Client.GetAsync($"check?ipAddress={WebUtility.UrlEncode(ip)}&maxAgeInDays={maxAge}{(verbose ? "&verbose" : "")}");
+            res.EnsureSuccessStatusCode();
 
             Stream stream = await res.Content.ReadAsStreamAsync();
             if (stream.Length == 0)
