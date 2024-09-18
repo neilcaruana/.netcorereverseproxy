@@ -1,9 +1,16 @@
-﻿using ReverseProxyServer.Core.Enums.ProxyEnums;
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 
 namespace ReverseProxyServer.Logging;
 
+public enum LogLevel
+{
+    Info = 0,
+    Error = 1,
+    Request = 2,
+    Warning = 3,
+    Debug = 4
+}
 public class BaseLogger(LogLevel loggerLevel, CancellationToken cancellationToken = default)
 {
     private string datePrefix => DateTime.Now.ToString("dd-MM-yyyy HH:mm:ss.fff", CultureInfo.InvariantCulture);

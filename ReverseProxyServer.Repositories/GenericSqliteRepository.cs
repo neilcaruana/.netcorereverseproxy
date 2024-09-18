@@ -87,7 +87,7 @@ namespace ReverseProxyServer.Repositories
         public async Task<T> UpsertAsync(T entity)
         {
             int rowsAffected = await this.UpdateAsync(entity);
-            if (rowsAffected > 0)
+            if (rowsAffected == 0)
                 return await this.InsertAsync(entity);
 
             //Record already existed in DB return updated record

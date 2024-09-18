@@ -1,3 +1,5 @@
+PRAGMA journal_mode=WAL;
+
 -- Create the Instances table
 CREATE TABLE IF NOT EXISTS Instances (
     InstanceId TEXT PRIMARY KEY,
@@ -7,15 +9,6 @@ CREATE TABLE IF NOT EXISTS Instances (
     Version TEXT NOT NULL,
     RowId INTEGER NULL UNIQUE
 );
-
-CREATE TRIGGER IF NOT EXISTS SetInstancesRowId
-AFTER INSERT ON Instances
-FOR EACH ROW
-BEGIN
-    UPDATE Instances
-    SET RowId = (SELECT IFNULL(MAX(RowId),0) + 1 FROM Instances)
-    WHERE InstanceId = NEW.InstanceId;
-END;
 
 -- Create the Connections table
 CREATE TABLE IF NOT EXISTS Connections (
@@ -41,23 +34,6 @@ CREATE TABLE IF NOT EXISTS ConnectionsData (
     [Data] TEXT
 );
 
--- Create the IPAddressHistory table
-CREATE TABLE IF NOT EXISTS IPAddressHistory (
-    IP TEXT PRIMARY KEY,
-    LastConnectionTime DATETIME NOT NULL,
-    Hits INTEGER NOT NULL,
-    RowId INTEGER NULL UNIQUE
-);
-
-CREATE TRIGGER IF NOT EXISTS SetIPAddressHistoryRowId
-AFTER INSERT ON IPAddressHistory
-FOR EACH ROW
-BEGIN
-    UPDATE IPAddressHistory
-    SET RowId = (SELECT IFNULL(MAX(RowId),0) + 1 FROM IPAddressHistory)
-    WHERE IP = NEW.IP;
-END;
-
 -- Create the PortsHistory table
 CREATE TABLE IF NOT EXISTS PortsHistory (
     Port INTEGER PRIMARY KEY,
@@ -66,6 +42,52 @@ CREATE TABLE IF NOT EXISTS PortsHistory (
     RowId INTEGER NULL UNIQUE
 );
 
+-- Create the IPAddressHistory table
+CREATE TABLE IF NOT EXISTS IPAddressHistory (
+    IPAddress TEXT PRIMARY KEY,
+    LastConnectionTime DATETIME NOT NULL,
+    Hits INTEGER NOT NULL,
+    IsBlacklisted BOOLEAN NOT NULL,
+    RowId INTEGER NULL UNIQUE
+);
+
+-- Create the AbuseIPDB_CheckedIPS table
+CREATE TABLE IF NOT EXISTS AbuseIPDB_CheckedIPS (
+    IPAddress TEXT NOT NULL PRIMARY KEY,
+    IsPublic BOOLEAN NOT NULL,
+    IPVersion INTEGER NOT NULL,
+    IsWhitelisted BOOLEAN,
+    AbuseConfidence INTEGER NOT NULL,
+    CountryCode TEXT NULL,
+    CountryName TEXT NULL,
+    UsageType TEXT NULL,
+    ISP TEXT NULL,
+    Domain TEXT NULL,
+    Hostnames TEXT NOT NULL, 
+    TotalReports INTEGER NOT NULL,
+    DistinctUserCount INTEGER NOT NULL,
+    LastReportedAt DATETIME NULL,
+    RowId INTEGER NULL UNIQUE
+);
+
+CREATE TRIGGER IF NOT EXISTS SetInstancesRowId
+AFTER INSERT ON Instances
+FOR EACH ROW
+BEGIN
+    UPDATE Instances
+    SET RowId = (SELECT IFNULL(MAX(RowId),0) + 1 FROM Instances)
+    WHERE InstanceId = NEW.InstanceId;
+END;
+
+CREATE TRIGGER IF NOT EXISTS SetIPAddressHistoryRowId
+AFTER INSERT ON IPAddressHistory
+FOR EACH ROW
+BEGIN
+    UPDATE IPAddressHistory
+    SET RowId = (SELECT IFNULL(MAX(RowId),0) + 1 FROM IPAddressHistory)
+    WHERE IPAddress = NEW.IPAddress;
+END;
+
 CREATE TRIGGER IF NOT EXISTS SetPortsHistoryRowId
 AFTER INSERT ON PortsHistory
 FOR EACH ROW
@@ -73,6 +95,15 @@ BEGIN
     UPDATE PortsHistory
     SET RowId = (SELECT IFNULL(MAX(RowId),0) + 1 FROM PortsHistory)
     WHERE Port = NEW.Port;
+END;
+
+CREATE TRIGGER IF NOT EXISTS SetAbuseIPDB_CheckedIPSId
+AFTER INSERT ON AbuseIPDB_CheckedIPS
+FOR EACH ROW
+BEGIN
+    UPDATE AbuseIPDB_CheckedIPS
+    SET RowId = (SELECT IFNULL(MAX(RowId),0) + 1 FROM AbuseIPDB_CheckedIPS)
+    WHERE IPAddress = NEW.IPAddress;
 END;
 
 

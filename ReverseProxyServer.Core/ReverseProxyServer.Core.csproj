@@ -6,4 +6,9 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\Kavalan\Kavalan.Core\Kavalan.Core.csproj" />
+    <ProjectReference Include="..\..\Kavalan\Kavalan.Logging\Kavalan.Logging.csproj" />
+  </ItemGroup>
+
 </Project>

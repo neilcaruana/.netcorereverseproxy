@@ -43,20 +43,28 @@ namespace ReverseProxyServer.Extensions.AbuseIPDB
 
         public async Task<CheckedIP> CheckIP(string ip, bool verbose = false, int maxAge = 90)
         {
-           if (string.IsNullOrEmpty(ip)) throw new ArgumentNullException(nameof(ip), "IP address to check is null or empty.");
-            if (maxAge <= 0) throw new ArgumentOutOfRangeException(nameof(maxAge), "Max age has to be a positive value.");
+            try
+            {
+                if (string.IsNullOrEmpty(ip)) throw new ArgumentNullException(nameof(ip), "IP address to check is null or empty.");
+                if (maxAge <= 0) throw new ArgumentOutOfRangeException(nameof(maxAge), "Max age has to be a positive value.");
 
-            HttpResponseMessage res = await Client.GetAsync($"check?ipAddress={WebUtility.UrlEncode(ip)}&maxAgeInDays={maxAge}{(verbose ? "&verbose" : "")}");
-            res.EnsureSuccessStatusCode();
+                using HttpResponseMessage res = await Client.GetAsync($"check?ipAddress={WebUtility.UrlEncode(ip)}&maxAgeInDays={maxAge}{(verbose ? "&verbose" : "")}");
+                res.EnsureSuccessStatusCode();
 
-            Stream stream = await res.Content.ReadAsStreamAsync();
-            if (stream.Length == 0)
-                throw new Exception($"No data returned from AbuseIPDB web service for IP Address {ip}");
+                using Stream stream = await res.Content.ReadAsStreamAsync();
+                if (stream.Length == 0)
+                    throw new Exception($"No data returned from AbuseIPDB web service for IP Address {ip}");
 
-            CheckedIPContainer? checkedIpData = await res.Deseralize<CheckedIPContainer>();
+                CheckedIPContainer? checkedIpData = await res.Deseralize<CheckedIPContainer>();
 
-            CheckedIP checkedIP = (checkedIpData?.Data) ?? throw new Exception($"Invalid data returned from AbuseIPDB web service for IP Address {ip}");
-            return checkedIP;
+                CheckedIP checkedIP = (checkedIpData?.Data) ?? throw new Exception($"Invalid data returned from AbuseIPDB web service for IP Address {ip}");
+                return checkedIP;
+
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"[{ip}] AbuseIPDB {ex.Message}");
+            }
         }
     }
 }

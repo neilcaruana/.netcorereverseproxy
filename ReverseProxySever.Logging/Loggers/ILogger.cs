@@ -1,4 +1,4 @@
-﻿namespace ReverseProxyServer.Core.Interfaces;
+﻿namespace ReverseProxySever.Logging.Interfaces;
 
 public interface ILogger
 {

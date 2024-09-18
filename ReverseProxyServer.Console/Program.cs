@@ -1,10 +1,9 @@
-﻿using ReverseProxyServer.Core;
-using ReverseProxyServer.Core.Enums.ProxyEnums;
+﻿using Kavalan.Logging;
+using ReverseProxyServer.Core;
+using ReverseProxyServer.Core.Helpers;
 using ReverseProxyServer.Core.Interfaces;
-using ReverseProxyServer.Core.Logging;
 using ReverseProxyServer.Data.DTO;
 using ReverseProxyServer.Extensions.AbuseIPDB;
-using System.Diagnostics;
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -40,6 +39,7 @@ namespace ReverseProxyServer
 
                 //Start the reverse proxy with the specified setting
                 ReverseProxy reverseProxy = new(settings, reverseProxyCancellationSource.Token);
+                reverseProxy.BeforeNewConnection += ReverseProxy_BeforeNewConnection;
                 reverseProxy.NewConnection += ReverseProxy_OnNewConnection;
                 reverseProxy.NewConnectionData += ReverseProxy_NewConnectionData;
                 reverseProxy.Notification += ReverseProxy_Notification;
@@ -96,7 +96,7 @@ namespace ReverseProxyServer
 
                                 string numberOfDays = ConsoleHelper.ReadConsoleValueUntilEnter();
                                 int days = Convert.ToInt32(numberOfDays);
-                                await logger.LogInfoAsync(ConsoleHelper.FormatAbuseIPDBCheckIP(await abuseIPDBClient.CheckIP(ip, true), days));
+                                await logger.LogInfoAsync(ConsoleHelper.FormatAbuseIPDBCheckIP(await abuseIPDBClient.CheckIP(ip, true), days, 0));
                                 await Task.Delay(2000);
                                 break;
                             case ConsoleKey.S:
@@ -150,10 +150,17 @@ namespace ReverseProxyServer
                 while (!reverseProxyCancellationSource.IsCancellationRequested);
 
                 await logger.LogInfoAsync($"Stopping Reverse proxy server...");
+                //Checks for active connections and displays them
                 if (reverseProxy.ActiveConnections.Any())
+                {
                     await logger.LogInfoAsync($"Waiting for all tasks to finish [{reverseProxy.ActiveConnections.Count()}]");
-
+                    foreach (IReverseProxyConnection activeConnection in reverseProxy.ActiveConnections)
+                        await logger.LogInfoAsync(ProxyHelper.GetConnectionInfo(activeConnection));
+                }
+                //Wait for 60 seconds and force shutdown
                 reverseProxy.Stop().Wait(TimeSpan.FromSeconds(60));
+
+                //Update database instance with stop time
                 consoleDatabaseManager.UpdateServerInstanceAsStopped(serverDBInstance);
                 await logger.LogInfoAsync($"Stopped Reverse proxy server..." + (reverseProxy.ActiveConnections.Any() ? $" Some tasks did not finish {reverseProxy.ActiveConnections.Count()}" : ""));
 
@@ -166,7 +173,7 @@ namespace ReverseProxyServer
             }
              catch (Exception ex)
             {
-                await logger.LogErrorAsync("General failure" + ex.Message + Environment.NewLine + ex.StackTrace + Environment.NewLine + ex.GetBaseException().Message + Environment.NewLine + ex.GetBaseException().StackTrace, ex);
+                await logger.LogErrorAsync("General failure" + ex.GetBaseException().Message, ex);
             }
         }
 
@@ -203,32 +210,54 @@ namespace ReverseProxyServer
             if (logSemaphore.CurrentCount == 0)
                 logSemaphore.Release();
         }
-        private static async Task ReverseProxy_OnNewConnection(object sender, ConnectionEventArgs e)
+        private static void ReverseProxy_BeforeNewConnection(object? sender, ConnectionEventArgs e)
         {
             if (consoleDatabaseManager != null)
             {
-                Connection newConnection = new()
+                IPAddressHistory? ip = consoleDatabaseManager.GetIPAddressHistoryAsync(e.RemoteAddress);
+                e.IsBlacklisted = ip?.IsBlacklisted == 1;
+            }
+        }
+        private static async Task ReverseProxy_OnNewConnection(object sender, ConnectionEventArgs e)
+        {
+            try
+            {
+                if (consoleDatabaseManager != null)
                 {
-                    ConnectionTime = e.ConnectionTime,
-                    ProxyType = e.ProxyType.ToString(),
-                    InstanceId = serverDBInstance?.InstanceId ?? "",
-                    SessionId = e.SessionId,
-                    LocalAddress = e.LocalAddress,
-                    LocalPort = e.LocalPort,
-                    TargetHost = e.TargetHost,
-                    TargetPort = e.TargetPort,
-                    RemoteAddress = e.RemoteAddress,
-                    RemotePort = e.RemotePort
-                };
-                await consoleDatabaseManager.RegisterConnectionDetails(newConnection);
+                    Connection newConnection = new()
+                    {
+                        ConnectionTime = e.ConnectionTime,
+                        ProxyType = e.ProxyType.ToString(),
+                        InstanceId = serverDBInstance?.InstanceId ?? "",
+                        SessionId = e.SessionId,
+                        LocalAddress = e.LocalAddress,
+                        LocalPort = e.LocalPort,
+                        TargetHost = e.TargetHost,
+                        TargetPort = e.TargetPort,
+                        RemoteAddress = e.RemoteAddress,
+                        RemotePort = e.RemotePort
+                    };
+                    await consoleDatabaseManager.RegisterConnectionDetails(newConnection, settings?.AbuseIPDBApiKey);
+                }
+            }
+            catch (Exception ex)
+            {
+                await logger.LogErrorAsync("OnNewConnection event", ex);
             }
         }
         private static async Task ReverseProxy_NewConnectionData(object sender, ConnectionDataEventArgs e)
         {
-            if (consoleDatabaseManager != null)
-                await consoleDatabaseManager.InsertNewConnectionData(new ConnectionData(e.SessionId, 
-                                                                                        e.CommunicationDirection, 
-                                                                                        e.RawData.ToString()));
+            try
+            {
+                if (consoleDatabaseManager != null)
+                    await consoleDatabaseManager.InsertNewConnectionData(new ConnectionData(e.SessionId,
+                                                                                            e.CommunicationDirection,
+                                                                                            e.RawData.ToString()));
+            }
+            catch (Exception ex)
+            {
+                await logger.LogErrorAsync("NewConnectionData event", ex);
+            }
         }
     }
 }

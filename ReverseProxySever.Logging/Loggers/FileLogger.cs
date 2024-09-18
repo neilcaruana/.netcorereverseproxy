@@ -1,6 +1,5 @@
-﻿using ReverseProxyServer.Core.Enums.ProxyEnums;
-using ReverseProxyServer.Core.Interfaces;
-using ReverseProxyServer.Logging;
+﻿using ReverseProxyServer.Logging;
+using ReverseProxySever.Logging.Interfaces;
 using System.Text;
 
 namespace ReverseProxySever.Logging.Loggers;
@@ -32,9 +31,7 @@ public class FileLogger : BaseLogger, ILogger
                 await File.AppendAllTextAsync(logFilePath, base.GetLogEntryHeader(messageLoggerLevel, correlationId) + " " + base.GetLogEntryMessage(entry) + Environment.NewLine, Encoding.UTF8);
             }
             catch (OperationCanceledException) { }
-            catch (AggregateException ex ) {
-                throw new Exception("HERE!!!!", ex);
-            }
+            catch (AggregateException ) { }
             finally
             {
                 if (logSemaphore.CurrentCount == 0)

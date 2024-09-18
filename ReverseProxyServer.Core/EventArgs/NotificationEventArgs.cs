@@ -1,11 +1,9 @@
-﻿using ReverseProxyServer.Core.Enums.ProxyEnums;
+﻿using Kavalan.Logging;
 
-namespace ReverseProxyServer.Core
+namespace ReverseProxyServer.Core;
+public class NotificationEventArgs(string message, string sessionId, LogLevel logLevel) : EventArgs
 {
-    public class NotificationEventArgs(string message, string sessionId, LogLevel logLevel) : EventArgs
-    {
-        public string Message { get; init; } = message;
-        public string SessionId { get; init; } = sessionId;
-        public LogLevel LogLevel { get; init; } = logLevel;
-    }
+    public string Message { get; init; } = message;
+    public string SessionId { get; init; } = sessionId;
+    public LogLevel LogLevel { get; init; } = logLevel;
 }

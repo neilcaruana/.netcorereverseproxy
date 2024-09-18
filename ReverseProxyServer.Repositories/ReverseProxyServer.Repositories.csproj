@@ -7,7 +7,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\ReverseProxyServer.Data.Sqlite\ReverseProxyServer.Data.Sqlite.csproj" />
     <ProjectReference Include="..\ReverseProxyServer.Data\ReverseProxyServer.Data.csproj" />
   </ItemGroup>
 

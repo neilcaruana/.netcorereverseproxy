@@ -10,12 +10,9 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Microsoft.Extensions.Logging;
-using ReverseProxyServer.Data.Sqlite;
 using ReverseProxyServer.Data.DTO;
 using System.Reflection;
-using System.Net;
-using ReverseProxyServer.Repositories;
+using Kavalan.Core;
 
 namespace ReverseProxyServer
 {
@@ -27,7 +24,7 @@ namespace ReverseProxyServer
             StringBuilder statisticsResult = new();
             statisticsResult.AppendLine($"ReverseProxy statistics");
             statisticsResult.AppendLine($"-----------------------");
-            statisticsResult.AppendLine($"Uptime: Running for {ProxyHelper.CalculateLastSeen(reverseProxy.StartedOn)}");
+            statisticsResult.AppendLine($"Uptime: Running for {reverseProxy.StartedOn.CalculateLastSeen()}");
             statisticsResult.AppendLine($"Proxy connections: {connections.Count(s => s.ProxyType == ReverseProxyType.Forward.ToString())}");
             statisticsResult.AppendLine($"Honeypot connections: {connections.Count(s => s.ProxyType == ReverseProxyType.HoneyPot.ToString())}");
             statisticsResult.AppendLine($"Total connections: {reverseProxy.TotalConnectionsReceived}");
@@ -38,9 +35,9 @@ namespace ReverseProxyServer
                                                .OrderByDescending(group => group.Count);
 
             statisticsResult.AppendLine($"Hits by Unique IPs [{groupByRemoteIPs.Count()}]");
-            foreach (var item in groupByRemoteIPs)
+            foreach (var ip in groupByRemoteIPs)
             {
-                statisticsResult.AppendLine($"\tIP: {item.RemoteAddress,-15} hit {item.Count:N0}x last seen {ProxyHelper.CalculateLastSeen(item.LastConnectTime)} ago");
+                statisticsResult.AppendLine($"\tIP: {ip.RemoteAddress,-15} hit {ip.Count:N0}x last seen {ip.LastConnectTime.CalculateLastSeen()} ago");
             }
 
             var groupByLocalPorts = connections.GroupBy(stat => stat.LocalPort)
@@ -49,9 +46,9 @@ namespace ReverseProxyServer
 
             statisticsResult.AppendLine(Environment.NewLine);
             statisticsResult.AppendLine($"Hits by Unique Ports [{groupByLocalPorts.Count()}]");
-            foreach (var item in groupByLocalPorts)
+            foreach (var port in groupByLocalPorts)
             {
-                statisticsResult.AppendLine($"\tPort: {item.LocalPort.ToString().PadRight(3, ' ')} hit {item.Count.ToString("N0")}x last hit {ProxyHelper.CalculateLastSeen(item.LastConnectTime)} ago");
+                statisticsResult.AppendLine($"\tPort: {port.LocalPort.ToString().PadRight(3, ' ')} hit {port.Count.ToString("N0")}x last hit {port.LastConnectTime.CalculateLastSeen()} ago");
             }
 
             return statisticsResult;
@@ -76,7 +73,7 @@ namespace ReverseProxyServer
             foreach (var activeConnection in reverseProxy.ActiveConnections)
             {
                 string cleanedConnectionInfo = $"[{activeConnection.SessionId}] {ProxyHelper.GetConnectionInfo(activeConnection)}";
-                statisticsResult.AppendLine($"\t {cleanedConnectionInfo} \t started {ProxyHelper.CalculateLastSeen(activeConnection.ConnectionTime)} ago");
+                statisticsResult.AppendLine($"\t {cleanedConnectionInfo} \t started {activeConnection.ConnectionTime.CalculateLastSeen()} ago");
             }
             return statisticsResult.ToString();
         }
@@ -87,18 +84,18 @@ namespace ReverseProxyServer
             yield return $"{Environment.NewLine}Cross referencing remote IPs with AbuseIPDB service{Environment.NewLine}";
 
             string result = "";
-            List<Connection> connections = await consoleDatabaseManager.GetConnections(instance.InstanceId);
-            IEnumerable<string> distinctTopRemoteIPs = connections.GroupBy(stat => stat.RemoteAddress)
-                                                                  .Select(group => group.Key)
-                                                                  .OrderByDescending(remoteAddress => connections.Count(stat => stat.RemoteAddress == remoteAddress))
+            var connections = await consoleDatabaseManager.GetConnections(instance.InstanceId);
+            var topRemoteIPs = connections.GroupBy(stat  => stat.RemoteAddress)
+                                                                  .Select(group => new { group.Key, Count = group.Count() })
+                                                                  .OrderByDescending(group => group.Count)
                                                                   .Take(100);
 
-            foreach (string remoteIP in distinctTopRemoteIPs)
+            foreach (var remoteIP in topRemoteIPs.ToList())
             {
                 try
                 {
-                    CheckedIP checkedip = await abuseIPDBClient.CheckIP(remoteIP, verbose, days);
-                    result = FormatAbuseIPDBCheckIP(checkedip, days);
+                    CheckedIP checkedip = await abuseIPDBClient.CheckIP(remoteIP.Key, verbose, days);
+                    result = FormatAbuseIPDBCheckIP(checkedip, days, remoteIP.Count);
                 }
                 catch (Exception ex)
                 {
@@ -107,9 +104,9 @@ namespace ReverseProxyServer
                 yield return result;
             }
         }
-        internal static string FormatAbuseIPDBCheckIP(CheckedIP checkedip, int days)
+        internal static string FormatAbuseIPDBCheckIP(CheckedIP checkedip, int days, int localHits)
         {
-            return $"IP: {checkedip?.IPAddress?.PadRight(15, ' ')}  Confidence: {(checkedip?.AbuseConfidence.ToString() + "%").PadRight(4, ' ')}  Reports [{days} day(s)]: {checkedip?.TotalReports.ToString().PadRight(4, ' ')}  Country: {checkedip?.CountryCode}  Last reported: {ProxyHelper.CalculateLastSeen(checkedip?.LastReportedAt)} ago";
+            return $"IP: {checkedip?.IPAddress?.PadRight(15, ' ')} {(localHits > 0 ? $"Hits: {localHits}" : "")} Confidence: {(checkedip?.AbuseConfidence.ToString() + "%").PadRight(4, ' ')}  Reports [{days} day(s)]: {checkedip?.TotalReports.ToString().PadRight(4, ' ')}  Country: {checkedip?.CountryCode}  Reported: {checkedip?.LastReportedAt.CalculateLastSeen()} ago";
         }
         internal static IProxyConfig LoadProxySettings()
         {

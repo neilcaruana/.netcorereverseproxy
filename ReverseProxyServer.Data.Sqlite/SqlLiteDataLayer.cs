@@ -1,12 +1,5 @@
 ﻿using Microsoft.Data.Sqlite;
-using System.ComponentModel;
-using System.ComponentModel.Design;
-using System.Net.Http.Headers;
 using System.Reflection;
-using System.Runtime.CompilerServices;
-using System.Transactions;
-using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
-using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 
 namespace ReverseProxyServer.Data.Sqlite
 {
@@ -56,6 +49,12 @@ namespace ReverseProxyServer.Data.Sqlite
             {
                 if (property.PropertyType == typeof(DateTime))
                     property.SetValue(entity, Convert.ToDateTime(reader[property.Name]));
+                else if (property.PropertyType == typeof(DateTime?))
+                {
+                    object nullableDateTime = reader[property.Name];
+                    if (nullableDateTime != DBNull.Value)
+                        property.SetValue(entity, Convert.ToDateTime(nullableDateTime));
+                }
                 else if (!reader.IsDBNull(reader.GetOrdinal(property.Name)))
                     property.SetValue(entity, reader[property.Name]);
             }

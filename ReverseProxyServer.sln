@@ -9,8 +9,6 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ReverseProxyServer.Core", "
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ReverseProxyServer.Data", "ReverseProxyServer.Data\ReverseProxyServer.Data.csproj", "{7D002AC7-5427-468F-B653-66E797E186DE}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ReverseProxySever.Logging", "ReverseProxySever.Logging\ReverseProxySever.Logging.csproj", "{0ECB64FF-307F-474B-A227-79914C329964}"
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{6D6B5E42-A941-44A3-9DD1-01094A58A3B2}"
 	ProjectSection(SolutionItems) = preProject
 		.editorconfig = .editorconfig
@@ -19,9 +17,15 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ReverseProxyServer.Extensions.AbuseIPDB", "ReverseProxyServer.Extensions.AbuseIPDB\ReverseProxyServer.Extensions.AbuseIPDB.csproj", "{E3A10DEC-8BF4-4ED0-864F-04E7A3C89FF0}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ReverseProxyServer.Data.Sqlite", "ReverseProxyServer.Data.Sqlite\ReverseProxyServer.Data.Sqlite.csproj", "{4DE68054-6186-49AC-929A-24A614075525}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Kavalan.Data.Sqlite", "..\Kavalan\Kavalan.Data.Sqlite\Kavalan.Data.Sqlite.csproj", "{65AE13DC-C677-444F-8B39-B328CB94D84F}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ReverseProxyServer.Repositories", "ReverseProxyServer.Repositories\ReverseProxyServer.Repositories.csproj", "{3DCF248B-A740-4930-8AEC-29B7FC2204C0}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Kavalan.Data.Sqlite.Repositories", "..\Kavalan\Kavalan.Data.Sqlite.Repositories\Kavalan.Data.Sqlite.Repositories.csproj", "{8208206E-EDFF-4097-9FD3-9FA60C91939C}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Kavalan.Logging", "..\Kavalan\Kavalan.Logging\Kavalan.Logging.csproj", "{10F631D6-817B-4FB8-863E-FF5DDC46C0DB}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Kavalan", "Kavalan", "{EFBFF6C8-3F76-405F-8A37-D7DAEE344F7C}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Kavalan.Core", "..\Kavalan\Kavalan.Core\Kavalan.Core.csproj", "{1A6FC783-D1B7-4BC1-9A9F-91C1195B4547}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -41,25 +45,35 @@ Global
 		{7D002AC7-5427-468F-B653-66E797E186DE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7D002AC7-5427-468F-B653-66E797E186DE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7D002AC7-5427-468F-B653-66E797E186DE}.Release|Any CPU.Build.0 = Release|Any CPU
-		{0ECB64FF-307F-474B-A227-79914C329964}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{0ECB64FF-307F-474B-A227-79914C329964}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{0ECB64FF-307F-474B-A227-79914C329964}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{0ECB64FF-307F-474B-A227-79914C329964}.Release|Any CPU.Build.0 = Release|Any CPU
 		{E3A10DEC-8BF4-4ED0-864F-04E7A3C89FF0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{E3A10DEC-8BF4-4ED0-864F-04E7A3C89FF0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E3A10DEC-8BF4-4ED0-864F-04E7A3C89FF0}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{E3A10DEC-8BF4-4ED0-864F-04E7A3C89FF0}.Release|Any CPU.Build.0 = Release|Any CPU
-		{4DE68054-6186-49AC-929A-24A614075525}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{4DE68054-6186-49AC-929A-24A614075525}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{4DE68054-6186-49AC-929A-24A614075525}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{4DE68054-6186-49AC-929A-24A614075525}.Release|Any CPU.Build.0 = Release|Any CPU
-		{3DCF248B-A740-4930-8AEC-29B7FC2204C0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{3DCF248B-A740-4930-8AEC-29B7FC2204C0}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{3DCF248B-A740-4930-8AEC-29B7FC2204C0}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{3DCF248B-A740-4930-8AEC-29B7FC2204C0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{65AE13DC-C677-444F-8B39-B328CB94D84F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{65AE13DC-C677-444F-8B39-B328CB94D84F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{65AE13DC-C677-444F-8B39-B328CB94D84F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{65AE13DC-C677-444F-8B39-B328CB94D84F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8208206E-EDFF-4097-9FD3-9FA60C91939C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8208206E-EDFF-4097-9FD3-9FA60C91939C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8208206E-EDFF-4097-9FD3-9FA60C91939C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8208206E-EDFF-4097-9FD3-9FA60C91939C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{10F631D6-817B-4FB8-863E-FF5DDC46C0DB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{10F631D6-817B-4FB8-863E-FF5DDC46C0DB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{10F631D6-817B-4FB8-863E-FF5DDC46C0DB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{10F631D6-817B-4FB8-863E-FF5DDC46C0DB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1A6FC783-D1B7-4BC1-9A9F-91C1195B4547}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1A6FC783-D1B7-4BC1-9A9F-91C1195B4547}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1A6FC783-D1B7-4BC1-9A9F-91C1195B4547}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1A6FC783-D1B7-4BC1-9A9F-91C1195B4547}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{65AE13DC-C677-444F-8B39-B328CB94D84F} = {EFBFF6C8-3F76-405F-8A37-D7DAEE344F7C}
+		{8208206E-EDFF-4097-9FD3-9FA60C91939C} = {EFBFF6C8-3F76-405F-8A37-D7DAEE344F7C}
+		{10F631D6-817B-4FB8-863E-FF5DDC46C0DB} = {EFBFF6C8-3F76-405F-8A37-D7DAEE344F7C}
+		{1A6FC783-D1B7-4BC1-9A9F-91C1195B4547} = {EFBFF6C8-3F76-405F-8A37-D7DAEE344F7C}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {2B974930-790E-4BA0-826A-A612969099D1}

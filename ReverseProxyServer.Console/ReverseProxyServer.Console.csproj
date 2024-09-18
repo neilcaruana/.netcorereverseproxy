@@ -13,11 +13,12 @@
     <EmbeddedResource Include="Resources\CreateDatabase.sql" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\Kavalan\Kavalan.Core\Kavalan.Core.csproj" />
+    <ProjectReference Include="..\..\Kavalan\Kavalan.Data.Sqlite.Repositories\Kavalan.Data.Sqlite.Repositories.csproj" />
+    <ProjectReference Include="..\..\Kavalan\Kavalan.Data.Sqlite\Kavalan.Data.Sqlite.csproj" />
     <ProjectReference Include="..\ReverseProxyServer.Core\ReverseProxyServer.Core.csproj" />
-    <ProjectReference Include="..\ReverseProxyServer.Data.Sqlite\ReverseProxyServer.Data.Sqlite.csproj" />
+    <ProjectReference Include="..\ReverseProxyServer.Data\ReverseProxyServer.Data.csproj" />
     <ProjectReference Include="..\ReverseProxyServer.Extensions.AbuseIPDB\ReverseProxyServer.Extensions.AbuseIPDB.csproj" />
-    <ProjectReference Include="..\ReverseProxyServer.Repositories\ReverseProxyServer.Repositories.csproj" />
-    <ProjectReference Include="..\ReverseProxySever.Logging\ReverseProxySever.Logging.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Update="appsettings.small">
