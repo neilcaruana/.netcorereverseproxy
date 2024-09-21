@@ -5,9 +5,13 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
 	<FileVersion>1.6.0</FileVersion>
+	<ApplicationIcon>ReverseProxyIcon.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <None Remove="Resources\CreateDatabase.sql" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="ReverseProxyIcon.ico" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Resources\CreateDatabase.sql" />
