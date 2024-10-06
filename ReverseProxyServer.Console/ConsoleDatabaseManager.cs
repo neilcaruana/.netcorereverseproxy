@@ -100,16 +100,21 @@ internal class ConsoleDatabaseManager
             await portsHistory.UpdateAsync(port);
         }
 
-        /* On new IP or existing IP check is older than a day query AbuseIPDB webservice;
+        /* On new IP or existing IP check if last reported at is > 24 hours query AbuseIPDB webservice;
         * if confidence is >=75% blacklist IP */
         if (!string.IsNullOrWhiteSpace(abuseIPDB_Key))
         {
-            AbuseIPDB_CheckedIP? abuseIP = await abuseIPDB_CheckedIP.SelectByPrimaryKeyAsync([connection.RemoteAddress]);
-            double hoursFromLastRefreshed = 0;
-            if (abuseIP != null)
-                hoursFromLastRefreshed = (DateTime.Now - (abuseIP.LastReportedAt ?? DateTime.Now)).TotalHours;
+            AbuseIPDB_CheckedIP? abuseIPDBRecord = await abuseIPDB_CheckedIP.SelectByPrimaryKeyAsync([connection.RemoteAddress]);
+            double hoursFromLastAbuseIPDBReport = 0;
+            if (abuseIPDBRecord != null)
+                hoursFromLastAbuseIPDBReport = (DateTime.Now - (abuseIPDBRecord.LastReportedAt ?? DateTime.Now)).TotalHours;
 
-            if (hoursFromLastRefreshed >= 24 || ip.Hits == 1) //If API last reported is more than 24 hours or first hit check
+            /*If IP is one of the following criterias query AbuseIPDB API
+             * First time IP hits
+             * AbuseIPDB Last reported at is more than 24 hours
+             * No results saved in database (Usually first time IP hits or last API query failed?)
+             */
+            if (abuseIPDBRecord == null || hoursFromLastAbuseIPDBReport >= 24 || ip.Hits == 1) 
             {
                 AbuseIPDBClient abuseIPDBClient = new(abuseIPDB_Key);
                 CheckedIP checkedIP = await abuseIPDBClient.CheckIP(connection.RemoteAddress, true, 30);
