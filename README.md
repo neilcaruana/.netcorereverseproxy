@@ -1,5 +1,5 @@
 # .NET Core Reverse Proxy
-A lightweight reverse proxy and simple Honeypot in .NET 8, designed to proxy requests and also act as a honeypot capturing request data for analysis. It supports both HTTP and HTTPS traffic, provides configurable logging capabilities, and can be easily extended for more advanced scenarios such as load balancing, request modification, and more.
+A lightweight reverse proxy and simple Honeypot in .NET 9, designed to proxy requests and also act as a honeypot capturing request data for analysis. It supports both HTTP and HTTPS traffic, provides configurable logging capabilities, and can be easily extended for more advanced scenarios such as load balancing, request modification, and more.
 
 ## Features
 * HTTP and HTTPS Support: Forward HTTP and HTTPS requests transparently.
