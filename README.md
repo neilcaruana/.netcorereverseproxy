@@ -5,7 +5,7 @@ A lightweight reverse proxy and simple Honeypot in .NET 9, designed to proxy req
 * HTTP and HTTPS Support: Forward HTTP and HTTPS requests transparently.
 * Support for a range of listening ports: Allowing parallel forward requests to different target servers based on configuration.
 * Sentinel Mode: Automatically listens on all available ports on the machine, used to act as a Honeypot for research purposes.
-* * Logging: Log requests and responses for debugging and monitoring purposes.
+* Logging: Log requests and responses for debugging and monitoring purposes.
 * Cancellation Support: Gracefully handle shutdown requests with proper cleanup.
 * Duplex Streaming: Real-time data processing with the ability to intercept and log data.
 * Asynchronous I/O: Leverages C#'s async/await for efficient network operations.
