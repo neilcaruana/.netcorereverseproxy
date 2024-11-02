@@ -85,7 +85,7 @@ namespace ReverseProxyServer
 
             string result = "";
             var connections = await consoleDatabaseManager.GetConnections(instance.InstanceId);
-            var topRemoteIPs = connections.GroupBy(stat  => stat.RemoteAddress)
+            var topRemoteIPs = connections.GroupBy(stat => stat.RemoteAddress)
                                                                   .Select(group => new { group.Key, Count = group.Count() })
                                                                   .OrderByDescending(group => group.Count)
                                                                   .Take(100);
@@ -120,7 +120,32 @@ namespace ReverseProxyServer
             };
 
             var jsonContent = File.ReadAllText("appsettings.json");
-            return JsonSerializer.Deserialize<ProxyConfig>(jsonContent, options) ?? new ProxyConfig();
+            IProxyConfig settings = JsonSerializer.Deserialize<ProxyConfig>(jsonContent, options) ?? new ProxyConfig();
+
+            /* Sentinel Mode;
+             * Remove all Honeypot endpoints and create one that listens on almost all machine port range 1-65000
+             * Leaving 535 ports available on the machine to avoid port exhaustion */
+            if (settings.SentinelMode) 
+            {
+                //Validate if we have at least one Honeypot endpoint
+                var honeypot = settings.EndPoints.Where(s => s.ProxyType == ReverseProxyType.HoneyPot).FirstOrDefault();
+                if (honeypot == null)
+                    throw new Exception("When in Sentinel mode you must have at least one Honeypot endpoint configured");
+
+                //Keep the forwarding rules
+                settings.EndPoints = settings.EndPoints.Where(s => s.ProxyType == ReverseProxyType.Forward).ToList();
+
+                //Add one sentinel endpoint
+                settings.EndPoints.Add(new ProxyEndpointConfig()
+                {
+                    ListeningAddress = honeypot.ListeningAddress,
+                    ProxyType = ReverseProxyType.HoneyPot,
+                    ListeningPortRange = "1-65000",
+                    TargetHost = "localhost"
+                });
+            }
+
+            return settings;
         }
         internal static string GetFileVersion()
         {

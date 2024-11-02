@@ -62,7 +62,7 @@ public class ReverseProxy
                                  (endpointSetting.ProxyType == ReverseProxyType.Forward ? $" » {endpointSetting.TargetHost}:{endpointSetting.TargetPort}" : "");
             await OnNotification(endpointLog, string.Empty, LogLevel.Info);
         }
-        await OnNotification($"Listening on {listeners.Count.ToString("N0")} total ports", string.Empty, LogLevel.Info);
+        await OnNotification($"Listening on {listeners.Count - settings.FaultyEndpoints:N0} total ports [{settings.FaultyEndpoints} faulty]", string.Empty, LogLevel.Info);
 
         //Continue new connection notifications
         pauseNotifications.Release();
@@ -74,10 +74,10 @@ public class ReverseProxy
     {
         try
         {
-            //Wait for listeners to stop with a timeout of 10 seconds
+            //Wait for listeners to stop with a timeout of 30 seconds
             await Task.WhenAll([.. listeners]).WaitAsync(TimeSpan.FromSeconds(30));
 
-            //Wait for pending connections to finish with a timeout of 10 seconds
+            //Wait for pending connections to finish with a timeout of 30 seconds
             await Task.WhenAll([.. activeConnectionsInternal.Values]).WaitAsync(TimeSpan.FromSeconds(30));
             //Clean pending connection tasks manually before exit, this is because clean-up thread has now exited
             CleanCompletedConnectionsInternal();
@@ -86,15 +86,14 @@ public class ReverseProxy
         {
             await OnError(ex.Message, string.Empty, ex);
         }
-
     }
 
-    private async Task CreateTcpListener(int port, IProxyEndpointConfig endpointSetting, CancellationToken cancellationToken)
+    private async Task CreateTcpListener(int port, IProxyEndpointConfig endpoint, CancellationToken cancellationToken)
     {
         TcpListener? listener = null;
         try
         {
-            listener = new(endpointSetting.ListeningIpAddress, port);
+            listener = new(endpoint.ListeningIpAddress, port);
             listener.Start();
 
             //Check for incoming connections until user needs to stop server
@@ -104,22 +103,33 @@ public class ReverseProxy
 
                 totalConnectionsReceived += 1; //Internal counter of all the connections received
                 string sessionId = Guid.NewGuid().ToString()[..8];
-                ConnectionEventArgs connectionInfo = new(DateTime.Now, sessionId, endpointSetting.ProxyType, CommunicationDirection.Incoming, endpointSetting.ListeningAddress, port, endpointSetting.TargetHost, endpointSetting.TargetPort,
-                                                         NetworkHelper.GetEndpointIPAddress(incomingTcpConnection.Client.RemoteEndPoint).ToString(), NetworkHelper.GetEndpointPort(incomingTcpConnection.Client.RemoteEndPoint));
+                ConnectionEventArgs connectionInfo = new(DateTime.Now, sessionId, endpoint.ProxyType, CommunicationDirection.Incoming, endpoint.ListeningAddress, port, endpoint.TargetHost, endpoint.TargetPort,
+                                                         NetworkHelper.GetEndpointIPAddress(incomingTcpConnection.Client.RemoteEndPoint).ToString(), NetworkHelper.GetEndpointPort(incomingTcpConnection.Client.RemoteEndPoint), string.Empty);
 
                 //Fire and forget processing of actual traffic, this will not block the current thread from processing new connections
-                Task newConnection = ProxyTraffic(incomingTcpConnection, connectionInfo, endpointSetting, cancellationToken);
+                Task newConnection = ProxyTraffic(incomingTcpConnection, connectionInfo, endpoint, cancellationToken);
 
                 //Handles all new connection event listeners asynchronously
                 await OnNewConnection(newConnection, connectionInfo);
             }
         }
+        catch (SocketException ex) when (ex.SocketErrorCode == SocketError.AddressAlreadyInUse || ex.SocketErrorCode == SocketError.AccessDenied)
+        {
+            settings.FaultyEndpoints++;
+            // In Sentinel mode if the port is already in use, skip it
+            if (settings.SentinelMode)
+                await OnNotification($"Skipping port {port} since its already in use", string.Empty, LogLevel.Warning);
+            else
+                await OnError($"Port {port} is already in use", string.Empty, ex);
+        }
         catch (OperationCanceledException)
         {
+            settings.FaultyEndpoints++;
             await OnNotification($"Operation cancelled on port {port}: User requested to stop reverse proxy", string.Empty, LogLevel.Debug);
         }
         catch (Exception ex)
         {
+            settings.FaultyEndpoints++;
             await OnError($"Creating endpoint listener on port {port}", string.Empty, ex);
         }
         finally
@@ -146,7 +156,7 @@ public class ReverseProxy
 
                 //Checks before continue processing (ex. blacklisted?)
                 BeforeNewConnection?.Invoke(this, connection);
-                await OnNotification($"Connection received from {connectionInfo}{(connection.IsBlacklisted ? " is blacklisted" : "")}", connection.SessionId, connection.IsBlacklisted ? LogLevel.Warning : LogLevel.Info);
+                await OnNotification($"Connection received from {(!string.IsNullOrEmpty(connection.CountryName) ? $"[{connection.CountryName}] " : "")}{connectionInfo}{(connection.IsBlacklisted ? " is blacklisted" : "")}", connection.SessionId, connection.IsBlacklisted ? LogLevel.Warning : LogLevel.Info);
                 if (incomingTcpClient.Connected)
                 {
                     using NetworkStream incomingDataStream = incomingTcpClient.GetStream();

@@ -18,6 +18,7 @@ internal class ConsoleDatabaseManager
     private GenericSqliteRepository<AbuseIPDB_CheckedIP> abuseIPDB_CheckedIP;
     private readonly bool enabled = false;
     private readonly string databasePath = "";
+
     public ConsoleDatabaseManager(string databasePath)
     {
         this.databasePath = databasePath;
@@ -152,9 +153,8 @@ internal class ConsoleDatabaseManager
                 }
             }
         }
-
-   
     }
+
     public async Task InsertNewConnectionData(ConnectionData connectionData)
     {
         if (!enabled) return;
@@ -164,9 +164,13 @@ internal class ConsoleDatabaseManager
     {
         return await connections.SelectDataByFieldValueAsync("InstanceId", instanceId);
     }
-    public IPAddressHistory? GetIPAddressHistoryAsync(string ip)
+    public async Task<IPAddressHistory?> GetIPAddressHistoryAsync(string ip)
     {
-        return ipAddressHistory.SelectByPrimaryKeyAsync([ip]).Result;
+        return await ipAddressHistory.SelectByPrimaryKeyAsync([ip]);
+    }
+    public async Task<AbuseIPDB_CheckedIP?> GetAbuseIPDB_CheckedIPAsync(string ip)
+    {
+        return await abuseIPDB_CheckedIP.SelectByPrimaryKeyAsync([ip]);
     }
 
 }

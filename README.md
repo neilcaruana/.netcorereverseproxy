@@ -1,10 +1,11 @@
 # .NET Core Reverse Proxy
-A lightweight reverse proxy and simple Honeypot in .NET 8, designed to proxy requests and also act as a simple honeypot capturing request data for analysis. It supports both HTTP and HTTPS traffic, provides configurable logging capabilities, and can be easily extended for more advanced scenarios such as load balancing, request modification, and more.
+A lightweight reverse proxy and simple Honeypot in .NET 8, designed to proxy requests and also act as a honeypot capturing request data for analysis. It supports both HTTP and HTTPS traffic, provides configurable logging capabilities, and can be easily extended for more advanced scenarios such as load balancing, request modification, and more.
 
 ## Features
 * HTTP and HTTPS Support: Forward HTTP and HTTPS requests transparently.
 * Support for a range of listening ports: Allowing parallel forward requests to different target servers based on configuration.
-* Logging: Log requests and responses for debugging and monitoring purposes.
+* Sentinel Mode: Automatically listens on all available ports on the machine, used to act as a Honeypot for research purposes.
+* * Logging: Log requests and responses for debugging and monitoring purposes.
 * Cancellation Support: Gracefully handle shutdown requests with proper cleanup.
 * Duplex Streaming: Real-time data processing with the ability to intercept and log data.
 * Asynchronous I/O: Leverages C#'s async/await for efficient network operations.
@@ -20,6 +21,7 @@ Below is an example configuration for setting up multiple listening endpoints:
 
 ```
 {
+  "SentinelMode": true,
   "SendTimeout": 60,
   "ReceiveTimeout": 60,
   "BufferSize": 4096,

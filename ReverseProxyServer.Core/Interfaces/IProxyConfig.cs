@@ -10,6 +10,8 @@ public interface IProxyConfig
     public int SendTimeout { get; init; }
     public int ReceiveTimeout { get; init; }
     public int BufferSize { get; init; }
+    public bool SentinelMode { get; init; }
     public LogLevel LogLevel { get; init; }
-    public IEnumerable<IProxyEndpointConfig> EndPoints { get; init; }
+    public IList<IProxyEndpointConfig> EndPoints { get; set; }
+    public int FaultyEndpoints { get; set; }
 }

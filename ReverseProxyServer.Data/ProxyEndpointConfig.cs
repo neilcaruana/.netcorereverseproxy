@@ -9,4 +9,5 @@ public class ProxyEndpointConfig : IProxyEndpointConfig
     public string ListeningPortRange { get; init; } = string.Empty;
     public string TargetHost { get; init; } = string.Empty;
     public int TargetPort { get; init; } = 0;
+    public bool IsFaulty { get; set; } = false;
 }

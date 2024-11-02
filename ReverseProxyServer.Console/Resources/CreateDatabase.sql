@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS AbuseIPDB_CheckedIPS (
     RowId INTEGER NULL UNIQUE
 );
 
+--Triggers
 CREATE TRIGGER IF NOT EXISTS SetInstancesRowId
 AFTER INSERT ON Instances
 FOR EACH ROW
@@ -105,5 +106,26 @@ BEGIN
     SET RowId = (SELECT IFNULL(MAX(RowId),0) + 1 FROM AbuseIPDB_CheckedIPS)
     WHERE IPAddress = NEW.IPAddress;
 END;
+
+--Indexes
+CREATE INDEX IX_Connections_RemoteAddress ON Connections (
+    RemoteAddress
+);
+
+CREATE INDEX IX_Connections_InstanceID ON Connections (
+    InstanceId
+);
+
+CREATE INDEX IX_Connections_ID ON Connections (
+    Id
+);
+
+CREATE INDEX IX_Connections_SessionID ON Connections (
+    SessionID
+);
+
+CREATE INDEX IX_ConnectionData_SessionID ON ConnectionsData (
+    SessionId
+);
 
 

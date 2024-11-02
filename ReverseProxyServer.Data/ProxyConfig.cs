@@ -14,8 +14,10 @@ public class ProxyConfig : IProxyConfig
     public LogLevel LogLevel { get; init; } = LogLevel.Debug;
     public int SendTimeout { get; init; }
     public int ReceiveTimeout { get; init; }
-    public IEnumerable<IProxyEndpointConfig> EndPoints { get; init; }
-
+    public bool SentinelMode { get; init; } = false;
+    public IList<IProxyEndpointConfig> EndPoints { get; set; }
+    [JsonIgnore]
+    public int FaultyEndpoints { get; set; }
     public ProxyConfig()
     {
         EndPoints = [];

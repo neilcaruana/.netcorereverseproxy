@@ -5,7 +5,7 @@ namespace ReverseProxyServer.Core
 {
     public class ConnectionEventArgs(DateTime connectionTime, string sessionId, ReverseProxyType reverseProxyType, CommunicationDirection communicationDirection,
                                 string localAddress, int localPort, string targetHost, int targetPort, string remoteAddress,
-                                int remotePort, bool isBlackListed = false) : EventArgs, IReverseProxyConnection
+                                int remotePort, string countryName, bool isBlackListed = false) : EventArgs, IReverseProxyConnection
     {
         public DateTime ConnectionTime { get; init; } = connectionTime;
         public string SessionId { get; init; } = sessionId;
@@ -18,5 +18,6 @@ namespace ReverseProxyServer.Core
         public string RemoteAddress { get; init; } = remoteAddress;
         public int RemotePort { get; init; } = remotePort;
         public bool IsBlacklisted { get; set; } = isBlackListed;
+        public string CountryName { get; set; } = countryName;
     }
 }

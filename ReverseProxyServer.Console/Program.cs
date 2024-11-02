@@ -28,9 +28,11 @@ namespace ReverseProxyServer
                 Console.OutputEncoding = Encoding.UTF8;
                 await logger.LogInfoAsync($"{Environment.OSVersion} {RuntimeInformation.FrameworkDescription}");
                 await logger.LogInfoAsync("Loading settings...");
-
                 settings = ConsoleHelper.LoadProxySettings();
+                 
                 logger = LoggerFactory.CreateCompositeLogger(settings.LogLevel, logCancellationSource.Token);
+                if (settings.SentinelMode)
+                    await logger.LogWarningAsync($"Sentinel mode detected!");
 
                 await logger.LogInfoAsync($"Starting Reverse proxy server on {Dns.GetHostName()}");
                 //Load database manager (works only if database path is set in config file)
@@ -166,6 +168,8 @@ namespace ReverseProxyServer
 
                 //Cancel all logging operations
                 logCancellationSource.Cancel();
+
+                Console.ReadKey();
             }
             catch (OperationCanceledException)
             {
@@ -210,12 +214,15 @@ namespace ReverseProxyServer
             if (logSemaphore.CurrentCount == 0)
                 logSemaphore.Release();
         }
-        private static void ReverseProxy_BeforeNewConnection(object? sender, ConnectionEventArgs e)
+        private static async void ReverseProxy_BeforeNewConnection(object? sender, ConnectionEventArgs e)
         {
             if (consoleDatabaseManager != null)
             {
-                IPAddressHistory? ip = consoleDatabaseManager.GetIPAddressHistoryAsync(e.RemoteAddress);
+                IPAddressHistory? ip = await consoleDatabaseManager.GetIPAddressHistoryAsync(e.RemoteAddress);
                 e.IsBlacklisted = ip?.IsBlacklisted == 1;
+
+                AbuseIPDB_CheckedIP? checkedIP = await consoleDatabaseManager.GetAbuseIPDB_CheckedIPAsync(e.RemoteAddress);
+                e.CountryName = checkedIP?.CountryName;
             }
         }
         private static async Task ReverseProxy_OnNewConnection(object sender, ConnectionEventArgs e)
@@ -242,7 +249,7 @@ namespace ReverseProxyServer
             }
             catch (Exception ex)
             {
-                await logger.LogErrorAsync("OnNewConnection event", ex);
+                await logger.LogErrorAsync("OnNewConnection event", ex, e.SessionId);
             }
         }
         private static async Task ReverseProxy_NewConnectionData(object sender, ConnectionDataEventArgs e)
@@ -256,7 +263,7 @@ namespace ReverseProxyServer
             }
             catch (Exception ex)
             {
-                await logger.LogErrorAsync("NewConnectionData event", ex);
+                await logger.LogErrorAsync("NewConnectionData event", ex, e.SessionId);
             }
         }
     }

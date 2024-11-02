@@ -15,5 +15,6 @@ namespace ReverseProxyServer.Core.Interfaces
         string RemoteAddress { get; init; }
         int RemotePort { get; init; }
         bool IsBlacklisted { get; set; }
+        string CountryName { get; set; }
     }
 }

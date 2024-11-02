@@ -63,7 +63,7 @@ namespace ReverseProxyServer.Extensions.AbuseIPDB
             }
             catch (Exception ex)
             {
-                throw new Exception($"[{ip}] AbuseIPDB {ex.Message}");
+                throw new Exception($"[{ip}] AbuseIPDB {ex.GetBaseException().Message}");
             }
         }
     }
