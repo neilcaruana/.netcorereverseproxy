@@ -33,28 +33,28 @@ Below is an example configuration for setting up multiple listening endpoints:
       "ProxyType": "Forward",
       "ListeningAddress": "localhost",
       "ListeningPortRange": "80",
-      "TargetHost": "localhost",
+      "TargetHost": "192.168.1.100",
       "TargetPort": 81
     },
     {
       "ProxyType": "Forward",
-      "ListeningAddress": "192.168.1.100",
+      "ListeningAddress": "localhost",
       "ListeningPortRange": "443",
-      "TargetHost": "localhost",
+      "TargetHost": "192.168.1.100",
       "TargetPort": 444
     },
     {
       "ProxyType": "Honeypot",
-      "ListeningAddress": "192.168.1.100",
+      "ListeningAddress": "localhost",
       "ListeningPortRange": "1-79",
-      "TargetHost": "localhost",
+      "TargetHost": "192.168.1.100",
       "TargetPort": -1
     },
     {
       "ProxyType": "Honeypot",
-      "ListeningAddress": "192.168.1.100",
+      "ListeningAddress": "localhost",
       "ListeningPortRange": "82-120",
-      "TargetHost": "localhost",
+      "TargetHost": "192.168.1.100",
       "TargetPort": -1
     }
   ]

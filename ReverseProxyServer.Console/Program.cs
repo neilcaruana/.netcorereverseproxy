@@ -169,6 +169,7 @@ namespace ReverseProxyServer
                 //Cancel all logging operations
                 logCancellationSource.Cancel();
 
+                await logger.LogWarningAsync($"Press any key to exit...");
                 Console.ReadKey();
             }
             catch (OperationCanceledException)
