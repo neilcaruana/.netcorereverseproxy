@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS AbuseIPDB_CheckedIPS (
     TotalReports INTEGER NOT NULL,
     DistinctUserCount INTEGER NOT NULL,
     LastReportedAt DATETIME NULL,
+    LastCheckedAt DATETIME NULL,
     RowId INTEGER NULL UNIQUE
 );
 
@@ -98,12 +99,21 @@ BEGIN
     WHERE Port = NEW.Port;
 END;
 
-CREATE TRIGGER IF NOT EXISTS SetAbuseIPDB_CheckedIPSId
+CREATE TRIGGER IF NOT EXISTS SetAbuseIPDB_CheckedIPSId_Insert
 AFTER INSERT ON AbuseIPDB_CheckedIPS
 FOR EACH ROW
 BEGIN
     UPDATE AbuseIPDB_CheckedIPS
     SET RowId = (SELECT IFNULL(MAX(RowId),0) + 1 FROM AbuseIPDB_CheckedIPS)
+    WHERE IPAddress = NEW.IPAddress;
+END;
+
+CREATE TRIGGER SetAbuseIPDB_CheckedIPSId_Update
+AFTER UPDATE ON AbuseIPDB_CheckedIPS
+FOR EACH ROW
+BEGIN
+    UPDATE AbuseIPDB_CheckedIPS
+    SET RowId = (SELECT IFNULL(MAX(RowId), 0) + 1 FROM AbuseIPDB_CheckedIPS)
     WHERE IPAddress = NEW.IPAddress;
 END;
 
@@ -127,5 +137,3 @@ CREATE INDEX IX_Connections_SessionID ON Connections (
 CREATE INDEX IX_ConnectionData_SessionID ON ConnectionsData (
     SessionId
 );
-
-

@@ -78,6 +78,11 @@ public class AbuseIPDB_CheckedIP
     public DateTime? LastReportedAt { get; set; }
 
     /// <summary>
+    /// When was the last time Reverse proxy queried the AbuseIPDB API
+    /// </summary>
+    public DateTime? LastCheckedAt { get; set; }
+
+    /// <summary>
     /// The row ID, which is unique.
     /// </summary>
     [DatabaseGenerated(DatabaseGeneratedOption.Computed)]

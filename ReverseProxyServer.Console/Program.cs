@@ -4,9 +4,11 @@ using ReverseProxyServer.Core.Helpers;
 using ReverseProxyServer.Core.Interfaces;
 using ReverseProxyServer.Data.DTO;
 using ReverseProxyServer.Extensions.AbuseIPDB;
+using System.Diagnostics;
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Text;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace ReverseProxyServer
 {
@@ -29,14 +31,14 @@ namespace ReverseProxyServer
                 await logger.LogInfoAsync($"{Environment.OSVersion} {RuntimeInformation.FrameworkDescription}");
                 await logger.LogInfoAsync("Loading settings...");
                 settings = ConsoleHelper.LoadProxySettings();
-                 
                 logger = LoggerFactory.CreateCompositeLogger(settings.LogLevel, logCancellationSource.Token);
+                
                 if (settings.SentinelMode)
-                    await logger.LogWarningAsync($"Sentinel mode detected!");
+                    await logger.LogInfoAsync($"Sentinel mode detected!");
 
                 await logger.LogInfoAsync($"Starting Reverse proxy server on {Dns.GetHostName()}");
                 //Load database manager (works only if database path is set in config file)
-                consoleDatabaseManager = new ConsoleDatabaseManager(settings.DatabasePath);
+                consoleDatabaseManager = new ConsoleDatabaseManager(settings.DatabasePath, logger);
                 serverDBInstance = consoleDatabaseManager.RegisterServer();
 
                 //Start the reverse proxy with the specified setting
@@ -128,7 +130,17 @@ namespace ReverseProxyServer
                                     await logger.LogInfoAsync("No active connections");
                                 break;
                             case ConsoleKey.D:
+                                await logSemaphore.WaitAsync(logCancellationSource.Token);
+                                Console.Write("Change log level to (Info, Error, Request, Warning, Debug): ");
+                                string logLevelInput = ConsoleHelper.ReadConsoleValueUntilEnter();
 
+                                if (Enum.TryParse<LogLevel>(logLevelInput, true, out LogLevel logLevel))
+                                {
+                                    logger.SetLogLevel(logLevel);
+                                    await logger.LogInfoAsync($"Log level changed to: {logLevel}");
+                                }
+                                else
+                                    Console.WriteLine("Invalid input value");
                                 break;
                             default:
                                 await logger.LogWarningAsync($"Press Ctrl+C to shutdown server or h for help");
@@ -178,7 +190,7 @@ namespace ReverseProxyServer
             }
              catch (Exception ex)
             {
-                await logger.LogErrorAsync("General failure" + ex.GetBaseException().Message, ex);
+                await logger.LogErrorAsync($"General failure {ex.GetBaseException().Message}", ex);
             }
         }
 

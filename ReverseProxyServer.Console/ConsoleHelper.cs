@@ -21,13 +21,16 @@ namespace ReverseProxyServer
         internal async static Task<StringBuilder> GetStatistics(ReverseProxy reverseProxy, ConsoleDatabaseManager consoleDatabaseManager, Instance instance)
         {
             List<Connection> connections = await consoleDatabaseManager.GetConnections(instance.InstanceId);
+            long apiRequestsForInstance = await consoleDatabaseManager.GetApiConnectionsForInstance(instance.StartTime);
+
             StringBuilder statisticsResult = new();
             statisticsResult.AppendLine($"ReverseProxy statistics");
             statisticsResult.AppendLine($"-----------------------");
             statisticsResult.AppendLine($"Uptime: Running for {reverseProxy.StartedOn.CalculateLastSeen()}");
+            statisticsResult.AppendLine($"API connections: {apiRequestsForInstance}");
             statisticsResult.AppendLine($"Proxy connections: {connections.Count(s => s.ProxyType == ReverseProxyType.Forward.ToString())}");
             statisticsResult.AppendLine($"Honeypot connections: {connections.Count(s => s.ProxyType == ReverseProxyType.HoneyPot.ToString())}");
-            statisticsResult.AppendLine($"Total connections: {reverseProxy.TotalConnectionsReceived}");
+            statisticsResult.AppendLine($"Total connections: {reverseProxy.TotalConnectionsReceived}{Environment.NewLine}");
             statisticsResult.AppendLine(GetActiveConnections(reverseProxy));
 
             var groupByRemoteIPs = connections.GroupBy(stat => stat.RemoteAddress)
@@ -239,7 +242,7 @@ namespace ReverseProxyServer
             Console.SetCursorPosition(0, newPosition);
             Console.Write(waitMessage + "... Press any key to continue ");
 
-            CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
+            CancellationTokenSource cancellationTokenSource = new();
             //Show blinking cursor and wait for key
             _ = ShowWaitCursorAsync(cancellationTokenSource.Token);
 

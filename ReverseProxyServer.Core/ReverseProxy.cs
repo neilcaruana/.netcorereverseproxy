@@ -49,7 +49,7 @@ public class ReverseProxy
     {
         startedListeningOn = DateTime.Now;
 
-        //Pause new connection log notifications until proxy has finsihed opening a listener on all ports 
+        //Pause new connection log notifications until proxy has finished opening a listener on all ports 
         await pauseNotifications.WaitAsync(cancellationToken);
 
         foreach (IProxyEndpointConfig endpointSetting in settings.EndPoints)
@@ -156,7 +156,7 @@ public class ReverseProxy
 
                 //Checks before continue processing (ex. blacklisted?)
                 BeforeNewConnection?.Invoke(this, connection);
-                await OnNotification($"Connection received from {(!string.IsNullOrEmpty(connection.CountryName) ? $"[{connection.CountryName}] " : "")}{connectionInfo}{(connection.IsBlacklisted ? " is blacklisted" : "")}", connection.SessionId, connection.IsBlacklisted ? LogLevel.Warning : LogLevel.Info);
+                await OnNotification($"Connection received from {(!string.IsNullOrEmpty(connection.CountryName) ? $"[{connection.CountryName}] " : "")}{connectionInfo}{(connection.IsBlacklisted ? " is blacklisted" : "")}", connection.SessionId, connection.IsBlacklisted ? LogLevel.Info : LogLevel.Info);
                 if (incomingTcpClient.Connected)
                 {
                     using NetworkStream incomingDataStream = incomingTcpClient.GetStream();
@@ -173,7 +173,7 @@ public class ReverseProxy
                         {
                             //Forwarded requests from blacklisted connections, are only captured (raw data) and then dropped
                             //No need to forward requests from blacklisted connections to protect internal services
-                            await OnNotification($"Connection data will not be forwarded as [{connection.RemoteAddress}] is blacklisted", connection.SessionId, LogLevel.Warning);
+                            await OnNotification($"Connection data will not be forwarded as [{connection.RemoteAddress}] is blacklisted", connection.SessionId, LogLevel.Info);
                             await CaptureRawDataAndDropRequest(incomingTcpClient, incomingDataStream, connection, connectionInfo);
                             return;
                         }

@@ -1,10 +1,13 @@
 ﻿using Kavalan.Core;
 using Kavalan.Data.Sqlite;
 using Kavalan.Data.Sqlite.Repositories;
+using Kavalan.Logging;
+using Microsoft.Extensions.Caching.Memory;
 using ReverseProxyServer.Core.Helpers;
 using ReverseProxyServer.Data.DTO;
 using ReverseProxyServer.Extensions.AbuseIPDB;
 using ReverseProxyServer.Extensions.AbuseIPDB.Data;
+using System.Diagnostics;
 
 namespace ReverseProxyServer;
 
@@ -16,12 +19,16 @@ internal class ConsoleDatabaseManager
     private GenericSqliteRepository<IPAddressHistory> ipAddressHistory;
     private GenericSqliteRepository<PortHistory> portsHistory;
     private GenericSqliteRepository<AbuseIPDB_CheckedIP> abuseIPDB_CheckedIP;
+
     private readonly bool enabled = false;
     private readonly string databasePath = "";
+    private readonly ILogger logger;
 
-    public ConsoleDatabaseManager(string databasePath)
+    public ConsoleDatabaseManager(string databasePath, ILogger logger)
     {
         this.databasePath = databasePath;
+        this.logger = logger;
+
         enabled = !string.IsNullOrWhiteSpace(databasePath);
         if (enabled)
         {
@@ -62,11 +69,16 @@ internal class ConsoleDatabaseManager
     public async Task RegisterConnectionDetails(Connection connection, string abuseIPDB_Key = "")
     {
         if (!enabled) return;
-        await connections.InsertAsync(connection);
-
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        string log = Environment.NewLine;
         DateTime currentDateTime = DateTime.Now;
-        IPAddressHistory? ip = await ipAddressHistory.SelectByPrimaryKeyAsync([connection.RemoteAddress]);
-        if (ip == null)
+
+        log += $"Insert connection record {await connections.InsertAsync(connection).TimeOnlyAsync()}ms{Environment.NewLine}";
+
+        (IPAddressHistory dbIPRecord, long selectIPOpTime) = await ipAddressHistory.SelectByPrimaryKeyAsync([connection.RemoteAddress]).TimeAsync();
+        log += $"Select IP record {selectIPOpTime}ms{Environment.NewLine}";
+        
+        if (dbIPRecord == null)
         {
             IPAddressHistory newIp = new()
             {
@@ -74,17 +86,22 @@ internal class ConsoleDatabaseManager
                 Hits = 1,
                 LastConnectionTime = currentDateTime
             };
-            ip = await ipAddressHistory.InsertAsync(newIp);
+            (IPAddressHistory insertedIpRecord, long insertOpTime) = await ipAddressHistory.InsertAsync(newIp).TimeAsync();
+            dbIPRecord = insertedIpRecord;
+            log += $"Insert IP record {insertOpTime}ms{Environment.NewLine}";
         }
         else
         {
-            ip.Hits++;
-            ip.LastConnectionTime = currentDateTime;
-            await ipAddressHistory.UpdateAsync(ip);
+            dbIPRecord.Hits++;
+            dbIPRecord.LastConnectionTime = currentDateTime;
+
+            log += $"Update IP record {await ipAddressHistory.UpdateAsync(dbIPRecord).TimeOnlyAsync()}ms{Environment.NewLine}";
         }
 
-        PortHistory? port = await portsHistory.SelectByPrimaryKeyAsync([connection.LocalPort]);
-        if (port == null)
+        (PortHistory dbPortRecord, long selectPortOpTime) = await portsHistory.SelectByPrimaryKeyAsync([connection.LocalPort]).TimeAsync();
+        log += $"Select Port record {selectPortOpTime}ms{Environment.NewLine}";
+
+        if (dbPortRecord == null)
         {
             PortHistory newPort = new()
             {
@@ -92,36 +109,35 @@ internal class ConsoleDatabaseManager
                 Hits = 1,
                 LastConnectionTime = currentDateTime
             };
-            await portsHistory.InsertAsync(newPort);
+            log += $"Insert Port record {await portsHistory.InsertAsync(newPort).TimeOnlyAsync()}ms{Environment.NewLine}";
         }
         else
         {
-            port.Hits++;
-            port.LastConnectionTime = currentDateTime;
-            await portsHistory.UpdateAsync(port);
+            dbPortRecord.Hits++;
+            dbPortRecord.LastConnectionTime = currentDateTime;
+            
+            log += $"Update Port record {await portsHistory.UpdateAsync(dbPortRecord).TimeOnlyAsync()}ms{Environment.NewLine}";
         }
 
-        /* On new IP or existing IP check if last reported at is > 24 hours query AbuseIPDB webservice;
-        * if confidence is >=75% blacklist IP */
         if (!string.IsNullOrWhiteSpace(abuseIPDB_Key))
         {
-            AbuseIPDB_CheckedIP? abuseIPDBRecord = await abuseIPDB_CheckedIP.SelectByPrimaryKeyAsync([connection.RemoteAddress]);
-            double hoursFromLastAbuseIPDBReport = 0;
-            if (abuseIPDBRecord != null)
-                hoursFromLastAbuseIPDBReport = (DateTime.Now - (abuseIPDBRecord.LastReportedAt ?? DateTime.Now)).TotalHours;
-
-            /*If IP is one of the following criterias query AbuseIPDB API
+            (AbuseIPDB_CheckedIP? abuseIPDBRecord, long dbOpTime) = await abuseIPDB_CheckedIP.SelectByPrimaryKeyAsync([connection.RemoteAddress]).TimeAsync();
+            log += $"Select AbuseIPDB record {dbOpTime}ms{Environment.NewLine}";
+            /*If IP is one of the following criteria query AbuseIPDB API
              * First time IP hits
-             * AbuseIPDB Last reported at is more than 24 hours
              * No results saved in database (Usually first time IP hits or last API query failed?)
+             * Last API call was >24 hours ago (This will ensure that we don't spam the API and only query once a day per IP)
              */
-            if (abuseIPDBRecord == null || hoursFromLastAbuseIPDBReport >= 24 || ip.Hits == 1) 
+            double? intervalFromLastCheck = (DateTime.Now - abuseIPDBRecord?.LastCheckedAt)?.TotalHours;
+            if (abuseIPDBRecord is null || dbIPRecord?.Hits == 1 || intervalFromLastCheck >= 24)
             {
                 AbuseIPDBClient abuseIPDBClient = new(abuseIPDB_Key);
-                CheckedIP checkedIP = await abuseIPDBClient.CheckIP(connection.RemoteAddress, true, 30);
+                (CheckedIP checkedIP, long APICallTime) = await abuseIPDBClient.CheckIP(connection.RemoteAddress, true, 30).TimeAsync();
+                log += $"Query AbuseIPDB API {APICallTime}ms{Environment.NewLine}";
+
                 if (checkedIP.IPAddress != null)
                 {
-                    AbuseIPDB_CheckedIP dbCheckedIP = new()
+                    AbuseIPDB_CheckedIP dbAbuseIPDB = new()
                     {
                         IPAddress = checkedIP.IPAddress,
                         AbuseConfidence = checkedIP.AbuseConfidence,
@@ -134,22 +150,22 @@ internal class ConsoleDatabaseManager
                         ISP = checkedIP.ISP,
                         IsPublic = checkedIP.IsPublic ? 1 : 0,
                         IsWhitelisted = (checkedIP.IsWhitelisted ?? false) ? 1 : 0,
-                        LastReportedAt = checkedIP.LastReportedAt,
                         TotalReports = checkedIP.TotalReports,
-                        UsageType = checkedIP.UsageType
+                        UsageType = checkedIP.UsageType,
+                        LastReportedAt = checkedIP.LastReportedAt,
+                        LastCheckedAt = DateTime.Now
                     };
-                    await abuseIPDB_CheckedIP.UpsertAsync(dbCheckedIP);
+                    log += $"Upsert AbuseIPDB record {await abuseIPDB_CheckedIP.UpsertAsync(dbAbuseIPDB).TimeOnlyAsync()}ms{Environment.NewLine}";
 
                     if (checkedIP.AbuseConfidence >= 75)
-                    {
-                        ip.IsBlacklisted = 1;
-                        await ipAddressHistory.UpdateAsync(ip);
-                    }
+                        dbIPRecord.IsBlacklisted = 1;
                     else if (checkedIP.AbuseConfidence < 75)
-                    {
-                        ip.IsBlacklisted = 0;
-                        await ipAddressHistory.UpdateAsync(ip);
-                    }
+                        dbIPRecord.IsBlacklisted = 0;
+
+                    log += $"Update IP record {await ipAddressHistory.UpdateAsync(dbIPRecord).TimeOnlyAsync()}ms{Environment.NewLine}";
+
+                    log += $"Total {stopwatch.ElapsedMilliseconds}ms";
+                    await logger.LogDebugAsync(log, connection.SessionId);
                 }
             }
         }
@@ -164,6 +180,10 @@ internal class ConsoleDatabaseManager
     {
         return await connections.SelectDataByFieldValueAsync("InstanceId", instanceId);
     }
+    public async Task<long> GetApiConnectionsForInstance(DateTime startedOn)
+    {
+        return await abuseIPDB_CheckedIP.CountAsync($"LastCheckedAt >= strftime('%Y-%m-%d %H:%M:%S', '{startedOn:yyyy-MM-dd HH:mm:ss}')");
+    }
     public async Task<IPAddressHistory?> GetIPAddressHistoryAsync(string ip)
     {
         return await ipAddressHistory.SelectByPrimaryKeyAsync([ip]);
@@ -172,5 +192,4 @@ internal class ConsoleDatabaseManager
     {
         return await abuseIPDB_CheckedIP.SelectByPrimaryKeyAsync([ip]);
     }
-
 }
