@@ -18,10 +18,10 @@ namespace ReverseProxyServer
 {
     internal static class ConsoleHelper
     {
-        internal async static Task<StringBuilder> GetStatistics(ReverseProxy reverseProxy, ConsoleDatabaseManager consoleDatabaseManager, Instance instance)
+        internal async static Task<StringBuilder> GetStatistics(ReverseProxy reverseProxy, IConsoleManager consoleManager, Instance instance)
         {
-            List<Connection> connections = await consoleDatabaseManager.GetConnections(instance.InstanceId);
-            long apiRequestsForInstance = await consoleDatabaseManager.GetApiConnectionsForInstance(instance.StartTime);
+            List<Connection> connections = await consoleManager.GetConnections(instance.InstanceId);
+            long apiRequestsForInstance = await consoleManager.GetApiConnectionsForInstance(instance.StartTime);
 
             StringBuilder statisticsResult = new();
             statisticsResult.AppendLine($"ReverseProxy statistics");
@@ -53,8 +53,8 @@ namespace ReverseProxyServer
             {
                 statisticsResult.AppendLine($"\tPort: {port.LocalPort.ToString().PadRight(3, ' ')} hit {port.Count.ToString("N0")}x last hit {port.LastConnectTime.CalculateLastSeen()} ago");
             }
-
-            return statisticsResult;
+            string[] result = statisticsResult.ToString().Split(Environment.NewLine);
+            return new StringBuilder(string.Join(Environment.NewLine, result[..Math.Min(7000, result.Length)]));
         }
         internal static void DisplayHelp()
         {
@@ -62,6 +62,7 @@ namespace ReverseProxyServer
             Console.WriteLine("-------------------------------------------------");
             Console.WriteLine("Ctrl+C           : Shutdown server");
             Console.WriteLine("H                : Display this help menu");
+            Console.WriteLine("D                : Change log level");
             Console.WriteLine("X                : Cross-reference connection history with AbuseIPDB");
             Console.WriteLine("Z                : Check specific IP address with AbuseIPDB");
             Console.WriteLine("S                : Display connection statistics");
@@ -80,14 +81,14 @@ namespace ReverseProxyServer
             }
             return statisticsResult.ToString();
         }
-        internal async static IAsyncEnumerable<string> GetAbuseIPDBCrossReference(ConsoleDatabaseManager consoleDatabaseManager, Instance instance, bool verbose = true, int days = 1)
+        internal async static IAsyncEnumerable<string> GetAbuseIPDBCrossReference(IConsoleManager consoleManager, Instance instance, bool verbose = true, int days = 1)
         {
             AbuseIPDBClient abuseIPDBClient = new("346ec4585ffe5c587c34760fe79e3f4b4b3ddb7ba3376592e7cb26d6ffa44422c92e096bde8ea64f");
             yield return Environment.NewLine;
             yield return $"{Environment.NewLine}Cross referencing remote IPs with AbuseIPDB service{Environment.NewLine}";
 
             string result = "";
-            var connections = await consoleDatabaseManager.GetConnections(instance.InstanceId);
+            var connections = await consoleManager.GetConnections(instance.InstanceId);
             var topRemoteIPs = connections.GroupBy(stat => stat.RemoteAddress)
                                                                   .Select(group => new { group.Key, Count = group.Count() })
                                                                   .OrderByDescending(group => group.Count)

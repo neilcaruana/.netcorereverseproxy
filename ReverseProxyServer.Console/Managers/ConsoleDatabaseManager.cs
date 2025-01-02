@@ -2,8 +2,6 @@
 using Kavalan.Data.Sqlite;
 using Kavalan.Data.Sqlite.Repositories;
 using Kavalan.Logging;
-using Microsoft.Extensions.Caching.Memory;
-using ReverseProxyServer.Core.Helpers;
 using ReverseProxyServer.Data.DTO;
 using ReverseProxyServer.Extensions.AbuseIPDB;
 using ReverseProxyServer.Extensions.AbuseIPDB.Data;
@@ -11,38 +9,24 @@ using System.Diagnostics;
 
 namespace ReverseProxyServer;
 
-internal class ConsoleDatabaseManager
+internal class ConsoleDatabaseManager : IConsoleManager
 {
-    private GenericSqliteRepository<Instance> instances;
-    private GenericSqliteRepository<Connection> connections;
-    private GenericSqliteRepository<ConnectionData> connectionsData;
-    private GenericSqliteRepository<IPAddressHistory> ipAddressHistory;
-    private GenericSqliteRepository<PortHistory> portsHistory;
-    private GenericSqliteRepository<AbuseIPDB_CheckedIP> abuseIPDB_CheckedIP;
-
-    private readonly bool enabled = false;
     private readonly string databasePath = "";
     private readonly ILogger logger;
 
     public ConsoleDatabaseManager(string databasePath, ILogger logger)
     {
-        this.databasePath = databasePath;
-        this.logger = logger;
+        if (string.IsNullOrWhiteSpace(databasePath))
+            throw new ArgumentException($"'{nameof(databasePath)}' cannot be null or whitespace.", nameof(databasePath));
 
-        enabled = !string.IsNullOrWhiteSpace(databasePath);
-        if (enabled)
-        {
-            instances = new GenericSqliteRepository<Instance>(databasePath);
-            connections = new GenericSqliteRepository<Connection>(databasePath);
-            connectionsData = new GenericSqliteRepository<ConnectionData>(databasePath);
-            ipAddressHistory = new GenericSqliteRepository<IPAddressHistory>(databasePath);
-            portsHistory = new GenericSqliteRepository<PortHistory>(databasePath);
-            abuseIPDB_CheckedIP = new GenericSqliteRepository<AbuseIPDB_CheckedIP>(databasePath);
-        }
+        this.databasePath = databasePath;
+        this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
-    public Instance? RegisterServer()
+
+    public Instance RegisterServer()
     {
-        if (!enabled) return null;
+        using GenericSqliteRepository<Instance> instances = new(databasePath);
+
         string createDbScript = ResourceHelper.ReadResourceFile("ReverseProxyServer.Console.Resources.CreateDatabase.sql");
         SqlLiteDataLayer sqlLiteDataLayer = new(databasePath);
         //Execute code in sync so that we make sure the database is created
@@ -57,18 +41,20 @@ internal class ConsoleDatabaseManager
         };
         return instances.InsertAsync(instance).GetAwaiter().GetResult();
     }
-    public void UpdateServerInstanceAsStopped(Instance? instance)
+    public void UpdateServerInstanceAsStopped(Instance instance)
     {
-        if (instance != null && enabled)
-        {
-            instance.EndTime = DateTime.Now;
-            instance.Status = "Stopped";
-            instances.UpdateAsync(instance).GetAwaiter().GetResult();
-        }
+        using GenericSqliteRepository<Instance> instances = new(databasePath);
+        instance.EndTime = DateTime.Now;
+        instance.Status = "Stopped";
+        instances.UpdateAsync(instance).GetAwaiter().GetResult();
     }
-    public async Task RegisterConnectionDetails(Connection connection, string abuseIPDB_Key = "")
+    public async Task<string> RegisterConnectionDetails(Connection connection, string abuseIPDB_Key)
     {
-        if (!enabled) return;
+        using GenericSqliteRepository<Connection> connections = new(databasePath);
+        using GenericSqliteRepository<IPAddressHistory> ipAddressHistory = new(databasePath);
+        using GenericSqliteRepository<PortHistory> portsHistory = new(databasePath);
+        using GenericSqliteRepository<AbuseIPDB_CheckedIP> abuseIPDB_CheckedIP = new(databasePath);
+
         Stopwatch stopwatch = Stopwatch.StartNew();
         string log = Environment.NewLine;
         DateTime currentDateTime = DateTime.Now;
@@ -77,7 +63,7 @@ internal class ConsoleDatabaseManager
 
         (IPAddressHistory dbIPRecord, long selectIPOpTime) = await ipAddressHistory.SelectByPrimaryKeyAsync([connection.RemoteAddress]).TimeAsync();
         log += $"Select IP record {selectIPOpTime}ms{Environment.NewLine}";
-        
+
         if (dbIPRecord == null)
         {
             IPAddressHistory newIp = new()
@@ -115,7 +101,7 @@ internal class ConsoleDatabaseManager
         {
             dbPortRecord.Hits++;
             dbPortRecord.LastConnectionTime = currentDateTime;
-            
+
             log += $"Update Port record {await portsHistory.UpdateAsync(dbPortRecord).TimeOnlyAsync()}ms{Environment.NewLine}";
         }
 
@@ -149,7 +135,7 @@ internal class ConsoleDatabaseManager
                         IPVersion = checkedIP.IPVersion,
                         ISP = checkedIP.ISP,
                         IsPublic = checkedIP.IsPublic ? 1 : 0,
-                        IsWhitelisted = (checkedIP.IsWhitelisted ?? false) ? 1 : 0,
+                        IsWhitelisted = checkedIP.IsWhitelisted ?? false ? 1 : 0,
                         TotalReports = checkedIP.TotalReports,
                         UsageType = checkedIP.UsageType,
                         LastReportedAt = checkedIP.LastReportedAt,
@@ -163,33 +149,36 @@ internal class ConsoleDatabaseManager
                         dbIPRecord.IsBlacklisted = 0;
 
                     log += $"Update IP record {await ipAddressHistory.UpdateAsync(dbIPRecord).TimeOnlyAsync()}ms{Environment.NewLine}";
-
-                    log += $"Total {stopwatch.ElapsedMilliseconds}ms";
-                    await logger.LogDebugAsync(log, connection.SessionId);
+                    return log += $"Total {stopwatch.ElapsedMilliseconds}ms";
                 }
             }
         }
+        return string.Empty;
     }
 
     public async Task InsertNewConnectionData(ConnectionData connectionData)
     {
-        if (!enabled) return;
+        using GenericSqliteRepository<ConnectionData> connectionsData = new GenericSqliteRepository<ConnectionData>(databasePath);
         await connectionsData.InsertAsync(connectionData);
     }
     public async Task<List<Connection>> GetConnections(string instanceId)
     {
+        using GenericSqliteRepository<Connection> connections = new(databasePath);
         return await connections.SelectDataByFieldValueAsync("InstanceId", instanceId);
     }
     public async Task<long> GetApiConnectionsForInstance(DateTime startedOn)
     {
+        using GenericSqliteRepository<AbuseIPDB_CheckedIP> abuseIPDB_CheckedIP = new(databasePath);
         return await abuseIPDB_CheckedIP.CountAsync($"LastCheckedAt >= strftime('%Y-%m-%d %H:%M:%S', '{startedOn:yyyy-MM-dd HH:mm:ss}')");
     }
     public async Task<IPAddressHistory?> GetIPAddressHistoryAsync(string ip)
     {
+        using GenericSqliteRepository<IPAddressHistory> ipAddressHistory = new(databasePath);
         return await ipAddressHistory.SelectByPrimaryKeyAsync([ip]);
     }
     public async Task<AbuseIPDB_CheckedIP?> GetAbuseIPDB_CheckedIPAsync(string ip)
     {
+        using GenericSqliteRepository<AbuseIPDB_CheckedIP> abuseIPDB_CheckedIP = new(databasePath);
         return await abuseIPDB_CheckedIP.SelectByPrimaryKeyAsync([ip]);
     }
 }

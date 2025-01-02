@@ -4,11 +4,9 @@ using ReverseProxyServer.Core.Helpers;
 using ReverseProxyServer.Core.Interfaces;
 using ReverseProxyServer.Data.DTO;
 using ReverseProxyServer.Extensions.AbuseIPDB;
-using System.Diagnostics;
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Text;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace ReverseProxyServer
 {
@@ -17,7 +15,7 @@ namespace ReverseProxyServer
         private static ILogger logger = LoggerFactory.CreateDefaultCompositeLogger();
         private static IProxyConfig? settings;
         private static Instance? serverDBInstance;
-        private static ConsoleDatabaseManager? consoleDatabaseManager;
+        private static IConsoleManager consoleManager;
         private static readonly CancellationTokenSource reverseProxyCancellationSource = new();
         private static readonly CancellationTokenSource logCancellationSource = new();
         private static readonly SemaphoreSlim logSemaphore = new(1, 1);
@@ -32,14 +30,17 @@ namespace ReverseProxyServer
                 await logger.LogInfoAsync("Loading settings...");
                 settings = ConsoleHelper.LoadProxySettings();
                 logger = LoggerFactory.CreateCompositeLogger(settings.LogLevel, logCancellationSource.Token);
-                
+
                 if (settings.SentinelMode)
                     await logger.LogInfoAsync($"Sentinel mode detected!");
 
+                if (string.IsNullOrWhiteSpace(settings.DatabasePath))
+                    consoleManager = new ConsoleBlankManager();
+                else
+                    consoleManager = new ConsoleDatabaseManager(settings.DatabasePath, logger);
+
                 await logger.LogInfoAsync($"Starting Reverse proxy server on {Dns.GetHostName()}");
-                //Load database manager (works only if database path is set in config file)
-                consoleDatabaseManager = new ConsoleDatabaseManager(settings.DatabasePath, logger);
-                serverDBInstance = consoleDatabaseManager.RegisterServer();
+                serverDBInstance = consoleManager.RegisterServer();
 
                 //Start the reverse proxy with the specified setting
                 ReverseProxy reverseProxy = new(settings, reverseProxyCancellationSource.Token);
@@ -73,10 +74,10 @@ namespace ReverseProxyServer
                                 {
                                     if (!settings.DatabaseEnabled)
                                     {
-                                        await logger.LogWarningAsync("Database not enabled, operation not supported");
+                                        await logger.LogErrorAsync("Database not enabled, operation not supported");
                                         break;
                                     }
-                                    await foreach (string result in ConsoleHelper.GetAbuseIPDBCrossReference(consoleDatabaseManager, serverDBInstance, true, 1))
+                                    await foreach (string result in ConsoleHelper.GetAbuseIPDBCrossReference(consoleManager, serverDBInstance, true, 1))
                                     {
                                         await logger.LogInfoAsync(result);
                                     }
@@ -109,10 +110,10 @@ namespace ReverseProxyServer
                                 {
                                     if (!settings.DatabaseEnabled)
                                     {
-                                        await logger.LogWarningAsync("Database not enabled, operation not supported");
+                                        await logger.LogErrorAsync("Database not enabled, operation not supported");
                                         break;
                                     }
-                                    StringBuilder stats = await ConsoleHelper.GetStatistics(reverseProxy, consoleDatabaseManager, serverDBInstance);
+                                    StringBuilder stats = await ConsoleHelper.GetStatistics(reverseProxy, consoleManager, serverDBInstance);
                                     await logger.LogInfoAsync(Environment.NewLine + Environment.NewLine + stats.ToString());
 
                                     int numberOfLines = stats.ToString().Split(Environment.NewLine).Length;
@@ -134,7 +135,7 @@ namespace ReverseProxyServer
                                 Console.Write("Change log level to (Info, Error, Request, Warning, Debug): ");
                                 string logLevelInput = ConsoleHelper.ReadConsoleValueUntilEnter();
 
-                                if (Enum.TryParse<LogLevel>(logLevelInput, true, out LogLevel logLevel))
+                                if (Enum.TryParse(logLevelInput, true, out LogLevel logLevel))
                                 {
                                     logger.SetLogLevel(logLevel);
                                     await logger.LogInfoAsync($"Log level changed to: {logLevel}");
@@ -163,6 +164,9 @@ namespace ReverseProxyServer
                 }
                 while (!reverseProxyCancellationSource.IsCancellationRequested);
 
+                //Temp code to find a better alternative
+                logger.SetLogLevel(LogLevel.Request);
+
                 await logger.LogInfoAsync($"Stopping Reverse proxy server...");
                 //Checks for active connections and displays them
                 if (reverseProxy.ActiveConnections.Any())
@@ -175,7 +179,7 @@ namespace ReverseProxyServer
                 reverseProxy.Stop().Wait(TimeSpan.FromSeconds(60));
 
                 //Update database instance with stop time
-                consoleDatabaseManager.UpdateServerInstanceAsStopped(serverDBInstance);
+                consoleManager.UpdateServerInstanceAsStopped(serverDBInstance);
                 await logger.LogInfoAsync($"Stopped Reverse proxy server..." + (reverseProxy.ActiveConnections.Any() ? $" Some tasks did not finish {reverseProxy.ActiveConnections.Count()}" : ""));
 
                 //Cancel all logging operations
@@ -188,7 +192,7 @@ namespace ReverseProxyServer
             {
                 await logger.LogDebugAsync($"Operation cancelled [General]: User requested to stop reverse proxy");
             }
-             catch (Exception ex)
+            catch (Exception ex)
             {
                 await logger.LogErrorAsync($"General failure {ex.GetBaseException().Message}", ex);
             }
@@ -229,12 +233,12 @@ namespace ReverseProxyServer
         }
         private static async void ReverseProxy_BeforeNewConnection(object? sender, ConnectionEventArgs e)
         {
-            if (consoleDatabaseManager != null)
+            if (consoleManager != null)
             {
-                IPAddressHistory? ip = await consoleDatabaseManager.GetIPAddressHistoryAsync(e.RemoteAddress);
+                IPAddressHistory? ip = await consoleManager.GetIPAddressHistoryAsync(e.RemoteAddress);
                 e.IsBlacklisted = ip?.IsBlacklisted == 1;
 
-                AbuseIPDB_CheckedIP? checkedIP = await consoleDatabaseManager.GetAbuseIPDB_CheckedIPAsync(e.RemoteAddress);
+                AbuseIPDB_CheckedIP? checkedIP = await consoleManager.GetAbuseIPDB_CheckedIPAsync(e.RemoteAddress);
                 e.CountryName = checkedIP?.CountryName;
             }
         }
@@ -242,7 +246,7 @@ namespace ReverseProxyServer
         {
             try
             {
-                if (consoleDatabaseManager != null)
+                if (consoleManager != null)
                 {
                     Connection newConnection = new()
                     {
@@ -257,20 +261,28 @@ namespace ReverseProxyServer
                         RemoteAddress = e.RemoteAddress,
                         RemotePort = e.RemotePort
                     };
-                    await consoleDatabaseManager.RegisterConnectionDetails(newConnection, settings?.AbuseIPDBApiKey);
+                    string registerLog = await consoleManager.RegisterConnectionDetails(newConnection, settings?.AbuseIPDBApiKey);
+                    await logSemaphore.WaitAsync(logCancellationSource.Token);
+                    if (!string.IsNullOrWhiteSpace(registerLog))
+                        await logger.LogDebugAsync(registerLog);
                 }
             }
             catch (Exception ex)
             {
                 await logger.LogErrorAsync("OnNewConnection event", ex, e.SessionId);
             }
+            finally
+            {
+                if (logSemaphore.CurrentCount == 0)
+                    logSemaphore.Release();
+            }
         }
         private static async Task ReverseProxy_NewConnectionData(object sender, ConnectionDataEventArgs e)
         {
             try
             {
-                if (consoleDatabaseManager != null)
-                    await consoleDatabaseManager.InsertNewConnectionData(new ConnectionData(e.SessionId,
+                if (consoleManager != null)
+                    await consoleManager.InsertNewConnectionData(new ConnectionData(e.SessionId,
                                                                                             e.CommunicationDirection,
                                                                                             e.RawData.ToString()));
             }
