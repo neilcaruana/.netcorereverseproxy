@@ -15,32 +15,40 @@ namespace ReverseProxyServer
         private static ILogger logger = LoggerFactory.CreateDefaultCompositeLogger();
         private static IProxyConfig? settings;
         private static Instance? serverDBInstance;
-        private static IConsoleManager consoleManager;
+        private static IConsoleManager? consoleManager;
+
+        private static readonly ConsoleHelper consoleHelper = new();
         private static readonly CancellationTokenSource reverseProxyCancellationSource = new();
         private static readonly CancellationTokenSource logCancellationSource = new();
         private static readonly SemaphoreSlim logSemaphore = new(1, 1);
+        private static readonly SettingsManager settingsManager = new();
+        
         public static async Task Main(string[] args)
         {
             try
             {
-                ConsoleHelper.LoadSplashScreen();
+                //Set console default behavior
                 Console.TreatControlCAsInput = true;
                 Console.OutputEncoding = Encoding.UTF8;
+
+                consoleHelper.LoadSplashScreen();
                 await logger.LogInfoAsync($"{Environment.OSVersion} {RuntimeInformation.FrameworkDescription}");
                 await logger.LogInfoAsync("Loading settings...");
-                settings = ConsoleHelper.LoadProxySettings();
+
+                //Load settings and managers 
+                settings = settingsManager.LoadProxySettings();
+                if (string.IsNullOrWhiteSpace(settings.DatabasePath))
+                    consoleManager = new ConsoleBlankManager();
+                else
+                    consoleManager = new ConsoleDatabaseManager(settings.DatabasePath);
+
                 logger = LoggerFactory.CreateCompositeLogger(settings.LogLevel, logCancellationSource.Token);
 
                 if (settings.SentinelMode)
                     await logger.LogInfoAsync($"Sentinel mode detected!");
 
-                if (string.IsNullOrWhiteSpace(settings.DatabasePath))
-                    consoleManager = new ConsoleBlankManager();
-                else
-                    consoleManager = new ConsoleDatabaseManager(settings.DatabasePath, logger);
-
                 await logger.LogInfoAsync($"Starting Reverse proxy server on {Dns.GetHostName()}");
-                serverDBInstance = consoleManager.RegisterServer();
+                serverDBInstance = consoleManager.RegisterServer(consoleHelper.GetFileVersion());
 
                 //Start the reverse proxy with the specified setting
                 ReverseProxy reverseProxy = new(settings, reverseProxyCancellationSource.Token);
@@ -66,7 +74,7 @@ namespace ReverseProxyServer
                                 break;
                             case ConsoleKey.H:
                                 await logSemaphore.WaitAsync(logCancellationSource.Token);
-                                ConsoleHelper.DisplayHelp();
+                                consoleHelper.DisplayHelp();
                                 break;
                             case ConsoleKey.X:
                                 await logSemaphore.WaitAsync(logCancellationSource.Token);
@@ -77,7 +85,7 @@ namespace ReverseProxyServer
                                         await logger.LogErrorAsync("Database not enabled, operation not supported");
                                         break;
                                     }
-                                    await foreach (string result in ConsoleHelper.GetAbuseIPDBCrossReference(consoleManager, serverDBInstance, true, 1))
+                                    await foreach (string result in consoleHelper.GetAbuseIPDBCrossReference(consoleManager, serverDBInstance, true, 1))
                                     {
                                         await logger.LogInfoAsync(result);
                                     }
@@ -91,7 +99,7 @@ namespace ReverseProxyServer
                                 AbuseIPDBClient abuseIPDBClient = new(settings.AbuseIPDBApiKey);
 
                                 Console.Write("Enter IP Address to check: ");
-                                string ip = ConsoleHelper.ReadConsoleValueUntilEnter();
+                                string ip = consoleHelper.ReadConsoleValueUntilEnter();
                                 if (!IPAddress.TryParse(ip, out IPAddress? ipAddress))
                                 {
                                     Console.WriteLine($"Invalid IP Address: {ip}");
@@ -99,9 +107,9 @@ namespace ReverseProxyServer
                                 }
                                 Console.Write("Enter number of days for reports history : ");
 
-                                string numberOfDays = ConsoleHelper.ReadConsoleValueUntilEnter();
+                                string numberOfDays = consoleHelper.ReadConsoleValueUntilEnter();
                                 int days = Convert.ToInt32(numberOfDays);
-                                await logger.LogInfoAsync(ConsoleHelper.FormatAbuseIPDBCheckIP(await abuseIPDBClient.CheckIP(ip, true), days, 0));
+                                await logger.LogInfoAsync(consoleHelper.FormatAbuseIPDBCheckIP(await abuseIPDBClient.CheckIP(ip, true), days, 0));
                                 await Task.Delay(2000);
                                 break;
                             case ConsoleKey.S:
@@ -113,12 +121,12 @@ namespace ReverseProxyServer
                                         await logger.LogErrorAsync("Database not enabled, operation not supported");
                                         break;
                                     }
-                                    StringBuilder stats = await ConsoleHelper.GetStatistics(reverseProxy, consoleManager, serverDBInstance);
+                                    StringBuilder stats = await consoleHelper.GetStatistics(consoleManager, reverseProxy, serverDBInstance);
                                     await logger.LogInfoAsync(Environment.NewLine + Environment.NewLine + stats.ToString());
 
                                     int numberOfLines = stats.ToString().Split(Environment.NewLine).Length;
 
-                                    ConsoleHelper.MoveCursorToPositionWithWait(numberOfLines, "ReverseProxy statistics");
+                                    consoleHelper.MoveCursorToPositionWithWait(numberOfLines, "ReverseProxy statistics");
                                 }
                                 else
                                     await logger.LogInfoAsync("No statistics generated");
@@ -126,14 +134,14 @@ namespace ReverseProxyServer
                             case ConsoleKey.A:
                                 await logSemaphore.WaitAsync(logCancellationSource.Token);
                                 if (reverseProxy.ActiveConnections.Any())
-                                    await logger.LogInfoAsync(Environment.NewLine + ConsoleHelper.GetActiveConnections(reverseProxy));
+                                    await logger.LogInfoAsync(Environment.NewLine + consoleHelper.GetActiveConnections(reverseProxy));
                                 else
                                     await logger.LogInfoAsync("No active connections");
                                 break;
                             case ConsoleKey.D:
                                 await logSemaphore.WaitAsync(logCancellationSource.Token);
                                 Console.Write("Change log level to (Info, Error, Request, Warning, Debug): ");
-                                string logLevelInput = ConsoleHelper.ReadConsoleValueUntilEnter();
+                                string logLevelInput = consoleHelper.ReadConsoleValueUntilEnter();
 
                                 if (Enum.TryParse(logLevelInput, true, out LogLevel logLevel))
                                 {
@@ -283,8 +291,8 @@ namespace ReverseProxyServer
             {
                 if (consoleManager != null)
                     await consoleManager.InsertNewConnectionData(new ConnectionData(e.SessionId,
-                                                                                            e.CommunicationDirection,
-                                                                                            e.RawData.ToString()));
+                                                                                    e.CommunicationDirection,
+                                                                                    e.RawData.ToString()));
             }
             catch (Exception ex)
             {

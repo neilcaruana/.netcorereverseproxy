@@ -29,7 +29,7 @@ namespace ReverseProxyServer
         {
             return Task.FromResult("");
         }
-        public Instance RegisterServer()
+        public Instance RegisterServer(string version)
         {
             return new Instance();
         }

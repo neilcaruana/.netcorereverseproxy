@@ -13,12 +13,13 @@ using System.Text.Json.Serialization;
 using ReverseProxyServer.Data.DTO;
 using System.Reflection;
 using Kavalan.Core;
+using Kavalan.Data.Sqlite.Repositories;
 
 namespace ReverseProxyServer
 {
-    internal static class ConsoleHelper
+    internal class ConsoleHelper()
     {
-        internal async static Task<StringBuilder> GetStatistics(ReverseProxy reverseProxy, IConsoleManager consoleManager, Instance instance)
+        internal async Task<StringBuilder> GetStatistics(IConsoleManager consoleManager, ReverseProxy reverseProxy, Instance instance)
         {
             List<Connection> connections = await consoleManager.GetConnections(instance.InstanceId);
             long apiRequestsForInstance = await consoleManager.GetApiConnectionsForInstance(instance.StartTime);
@@ -40,7 +41,8 @@ namespace ReverseProxyServer
             statisticsResult.AppendLine($"Hits by Unique IPs [{groupByRemoteIPs.Count()}]");
             foreach (var ip in groupByRemoteIPs)
             {
-                statisticsResult.AppendLine($"\tIP: {ip.RemoteAddress,-15} hit {ip.Count:N0}x last seen {ip.LastConnectTime.CalculateLastSeen()} ago");
+                AbuseIPDB_CheckedIP? ipDB = await consoleManager.GetAbuseIPDB_CheckedIPAsync(ip.RemoteAddress);
+                statisticsResult.AppendLine($"\t{(ipDB != null ? "Country: " + ipDB.CountryName?.PadRight(52, ' ') : " ")}\tIP: {ip.RemoteAddress,-15}\tHits: {ip.Count:N0}x\tlast seen {ip.LastConnectTime.CalculateLastSeen()}");
             }
 
             var groupByLocalPorts = connections.GroupBy(stat => stat.LocalPort)
@@ -56,7 +58,7 @@ namespace ReverseProxyServer
             string[] result = statisticsResult.ToString().Split(Environment.NewLine);
             return new StringBuilder(string.Join(Environment.NewLine, result[..Math.Min(7000, result.Length)]));
         }
-        internal static void DisplayHelp()
+        internal void DisplayHelp()
         {
             Console.WriteLine("Help Menu");
             Console.WriteLine("-------------------------------------------------");
@@ -70,7 +72,7 @@ namespace ReverseProxyServer
             Console.WriteLine("-------------------------------------------------");
             Console.WriteLine(Environment.NewLine);
         }
-        internal static string GetActiveConnections(ReverseProxy reverseProxy)
+        internal string GetActiveConnections(ReverseProxy reverseProxy)
         {
             StringBuilder statisticsResult = new();
             statisticsResult.AppendLine($"Active connections: {reverseProxy.ActiveConnections.Count()}");
@@ -81,7 +83,7 @@ namespace ReverseProxyServer
             }
             return statisticsResult.ToString();
         }
-        internal async static IAsyncEnumerable<string> GetAbuseIPDBCrossReference(IConsoleManager consoleManager, Instance instance, bool verbose = true, int days = 1)
+        internal async IAsyncEnumerable<string> GetAbuseIPDBCrossReference(IConsoleManager consoleManager, Instance instance, bool verbose = true, int days = 1)
         {
             AbuseIPDBClient abuseIPDBClient = new("346ec4585ffe5c587c34760fe79e3f4b4b3ddb7ba3376592e7cb26d6ffa44422c92e096bde8ea64f");
             yield return Environment.NewLine;
@@ -98,8 +100,8 @@ namespace ReverseProxyServer
             {
                 try
                 {
-                    CheckedIP checkedip = await abuseIPDBClient.CheckIP(remoteIP.Key, verbose, days);
-                    result = FormatAbuseIPDBCheckIP(checkedip, days, remoteIP.Count);
+                    CheckedIP checkedIP = await abuseIPDBClient.CheckIP(remoteIP.Key, verbose, days);
+                    result = FormatAbuseIPDBCheckIP(checkedIP, days, remoteIP.Count);
                 }
                 catch (Exception ex)
                 {
@@ -108,56 +110,17 @@ namespace ReverseProxyServer
                 yield return result;
             }
         }
-        internal static string FormatAbuseIPDBCheckIP(CheckedIP checkedip, int days, int localHits)
+        internal string FormatAbuseIPDBCheckIP(CheckedIP checkedip, int days, int localHits)
         {
             return $"IP: {checkedip?.IPAddress?.PadRight(15, ' ')} {(localHits > 0 ? $"Hits: {localHits}" : "")} Confidence: {(checkedip?.AbuseConfidence.ToString() + "%").PadRight(4, ' ')}  Reports [{days} day(s)]: {checkedip?.TotalReports.ToString().PadRight(4, ' ')}  Country: {checkedip?.CountryCode}  Reported: {checkedip?.LastReportedAt.CalculateLastSeen()} ago";
         }
-        internal static IProxyConfig LoadProxySettings()
-        {
-            JsonSerializerOptions options = new()
-            {
-                PropertyNameCaseInsensitive = true,
-                Converters = {
-                    new JsonStringEnumConverter(),
-                    new ProxyEndpointConfigConverter()
-                }
-            };
-
-            var jsonContent = File.ReadAllText("appsettings.json");
-            IProxyConfig settings = JsonSerializer.Deserialize<ProxyConfig>(jsonContent, options) ?? new ProxyConfig();
-
-            /* Sentinel Mode;
-             * Remove all Honeypot endpoints and create one that listens on almost all machine port range 1-65000
-             * Leaving 535 ports available on the machine to avoid port exhaustion */
-            if (settings.SentinelMode) 
-            {
-                //Validate if we have at least one Honeypot endpoint
-                var honeypot = settings.EndPoints.Where(s => s.ProxyType == ReverseProxyType.HoneyPot).FirstOrDefault();
-                if (honeypot == null)
-                    throw new Exception("When in Sentinel mode you must have at least one Honeypot endpoint configured");
-
-                //Keep the forwarding rules
-                settings.EndPoints = settings.EndPoints.Where(s => s.ProxyType == ReverseProxyType.Forward).ToList();
-
-                //Add one sentinel endpoint
-                settings.EndPoints.Add(new ProxyEndpointConfig()
-                {
-                    ListeningAddress = honeypot.ListeningAddress,
-                    ProxyType = ReverseProxyType.HoneyPot,
-                    ListeningPortRange = "1-65000",
-                    TargetHost = "localhost"
-                });
-            }
-
-            return settings;
-        }
-        internal static string GetFileVersion()
+        internal string GetFileVersion()
         {
             var attribute = Assembly.GetExecutingAssembly()
                                     .GetCustomAttribute<AssemblyFileVersionAttribute>();
             return attribute != null ? attribute.Version : "File Version not found";
         }
-        internal static void LoadSplashScreen()
+        internal void LoadSplashScreen()
         {
             //Get max between current and desired window size
             int windowWidth = Math.Max(100, Console.WindowWidth);
@@ -200,7 +163,7 @@ namespace ReverseProxyServer
                 _ = Task.Delay(100);
             }
         }
-        internal static string ReadConsoleValueUntilEnter()
+        internal string ReadConsoleValueUntilEnter()
         {
             ConsoleKeyInfo keyInfo;
             string data = "";
@@ -232,7 +195,7 @@ namespace ReverseProxyServer
             Console.CursorLeft = 0;
             return data;
         }
-        internal static void MoveCursorToPositionWithWait(int numberOfLines, string waitMessage)
+        internal void MoveCursorToPositionWithWait(int numberOfLines, string waitMessage)
         {
             int newPosition = Console.CursorTop - numberOfLines;
             int cursorBeforeMove = Console.CursorTop;
@@ -252,7 +215,7 @@ namespace ReverseProxyServer
             Console.ResetColor();
             Console.SetCursorPosition(0, cursorBeforeMove);
         }
-        static async Task ShowWaitCursorAsync(CancellationToken cancellationToken)
+        internal async Task ShowWaitCursorAsync(CancellationToken cancellationToken)
         {
             var cursorSymbols = new[] { '|', '/', '-', '\\' };
             int cursorIndex = 0;
@@ -286,7 +249,7 @@ namespace ReverseProxyServer
             Console.Write("     ");
             Console.SetCursorPosition(currentCursorLeft, currentCursorTop);
         }
-        internal static void SetRandomConsoleColor()
+        internal void SetRandomConsoleColor()
         {
             // Exclude the background color if desired (optional)
             var consoleColors = Enum.GetValues(typeof(ConsoleColor)).Cast<ConsoleColor>().Where(c => c != Console.BackgroundColor).ToArray();

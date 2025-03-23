@@ -12,18 +12,16 @@ namespace ReverseProxyServer;
 internal class ConsoleDatabaseManager : IConsoleManager
 {
     private readonly string databasePath = "";
-    private readonly ILogger logger;
 
-    public ConsoleDatabaseManager(string databasePath, ILogger logger)
+    public ConsoleDatabaseManager(string databasePath)
     {
         if (string.IsNullOrWhiteSpace(databasePath))
             throw new ArgumentException($"'{nameof(databasePath)}' cannot be null or whitespace.", nameof(databasePath));
 
         this.databasePath = databasePath;
-        this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public Instance RegisterServer()
+    public Instance RegisterServer(string version)
     {
         using GenericSqliteRepository<Instance> instances = new(databasePath);
 
@@ -36,7 +34,7 @@ internal class ConsoleDatabaseManager : IConsoleManager
         {
             InstanceId = Guid.NewGuid().ToString()[0..8],
             StartTime = DateTime.Now,
-            Version = ConsoleHelper.GetFileVersion(),
+            Version = version,
             Status = "Started"
         };
         return instances.InsertAsync(instance).GetAwaiter().GetResult();
@@ -61,7 +59,7 @@ internal class ConsoleDatabaseManager : IConsoleManager
 
         log += $"Insert connection record {await connections.InsertAsync(connection).TimeOnlyAsync()}ms{Environment.NewLine}";
 
-        (IPAddressHistory dbIPRecord, long selectIPOpTime) = await ipAddressHistory.SelectByPrimaryKeyAsync([connection.RemoteAddress]).TimeAsync();
+        (IPAddressHistory dbIPRecord, double selectIPOpTime) = await ipAddressHistory.SelectByPrimaryKeyAsync([connection.RemoteAddress]).TimeAsync();
         log += $"Select IP record {selectIPOpTime}ms{Environment.NewLine}";
 
         if (dbIPRecord == null)
@@ -72,7 +70,7 @@ internal class ConsoleDatabaseManager : IConsoleManager
                 Hits = 1,
                 LastConnectionTime = currentDateTime
             };
-            (IPAddressHistory insertedIpRecord, long insertOpTime) = await ipAddressHistory.InsertAsync(newIp).TimeAsync();
+            (IPAddressHistory insertedIpRecord, double insertOpTime) = await ipAddressHistory.InsertAsync(newIp).TimeAsync();
             dbIPRecord = insertedIpRecord;
             log += $"Insert IP record {insertOpTime}ms{Environment.NewLine}";
         }
@@ -84,7 +82,7 @@ internal class ConsoleDatabaseManager : IConsoleManager
             log += $"Update IP record {await ipAddressHistory.UpdateAsync(dbIPRecord).TimeOnlyAsync()}ms{Environment.NewLine}";
         }
 
-        (PortHistory dbPortRecord, long selectPortOpTime) = await portsHistory.SelectByPrimaryKeyAsync([connection.LocalPort]).TimeAsync();
+        (PortHistory dbPortRecord, double selectPortOpTime) = await portsHistory.SelectByPrimaryKeyAsync([connection.LocalPort]).TimeAsync();
         log += $"Select Port record {selectPortOpTime}ms{Environment.NewLine}";
 
         if (dbPortRecord == null)
@@ -107,7 +105,7 @@ internal class ConsoleDatabaseManager : IConsoleManager
 
         if (!string.IsNullOrWhiteSpace(abuseIPDB_Key))
         {
-            (AbuseIPDB_CheckedIP? abuseIPDBRecord, long dbOpTime) = await abuseIPDB_CheckedIP.SelectByPrimaryKeyAsync([connection.RemoteAddress]).TimeAsync();
+            (AbuseIPDB_CheckedIP? abuseIPDBRecord, double dbOpTime) = await abuseIPDB_CheckedIP.SelectByPrimaryKeyAsync([connection.RemoteAddress]).TimeAsync();
             log += $"Select AbuseIPDB record {dbOpTime}ms{Environment.NewLine}";
             /*If IP is one of the following criteria query AbuseIPDB API
              * First time IP hits
@@ -118,7 +116,7 @@ internal class ConsoleDatabaseManager : IConsoleManager
             if (abuseIPDBRecord is null || dbIPRecord?.Hits == 1 || intervalFromLastCheck >= 24)
             {
                 AbuseIPDBClient abuseIPDBClient = new(abuseIPDB_Key);
-                (CheckedIP checkedIP, long APICallTime) = await abuseIPDBClient.CheckIP(connection.RemoteAddress, true, 30).TimeAsync();
+                (CheckedIP checkedIP, double APICallTime) = await abuseIPDBClient.CheckIP(connection.RemoteAddress, true, 30).TimeAsync();
                 log += $"Query AbuseIPDB API {APICallTime}ms{Environment.NewLine}";
 
                 if (checkedIP.IPAddress != null)

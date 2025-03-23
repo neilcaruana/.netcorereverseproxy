@@ -10,7 +10,7 @@ namespace ReverseProxyServer
         Task<IPAddressHistory?> GetIPAddressHistoryAsync(string ip);
         Task InsertNewConnectionData(ConnectionData connectionData);
         Task<string> RegisterConnectionDetails(Connection connection, string abuseIPDB_Key);
-        Instance RegisterServer();
+        Instance RegisterServer(string version);
         void UpdateServerInstanceAsStopped(Instance instance);
     }
 }
