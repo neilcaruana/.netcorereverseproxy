@@ -28,10 +28,10 @@ namespace ReverseProxyServer
             statisticsResult.AppendLine($"ReverseProxy statistics");
             statisticsResult.AppendLine($"-----------------------");
             statisticsResult.AppendLine($"Uptime: Running for {reverseProxy.StartedOn.CalculateLastSeen()}");
-            statisticsResult.AppendLine($"API connections: {apiRequestsForInstance}");
-            statisticsResult.AppendLine($"Proxy connections: {connections.Count(s => s.ProxyType == ReverseProxyType.Forward.ToString())}");
-            statisticsResult.AppendLine($"Honeypot connections: {connections.Count(s => s.ProxyType == ReverseProxyType.HoneyPot.ToString())}");
-            statisticsResult.AppendLine($"Total connections: {reverseProxy.TotalConnectionsReceived}{Environment.NewLine}");
+            statisticsResult.AppendLine($"API connections: {apiRequestsForInstance:N0}");
+            statisticsResult.AppendLine($"Proxy connections: {connections.Count(s => s.ProxyType == ReverseProxyType.Forward.ToString()):N0}");
+            statisticsResult.AppendLine($"Honeypot connections: {connections.Count(s => s.ProxyType == ReverseProxyType.HoneyPot.ToString()):N0}");
+            statisticsResult.AppendLine($"Total connections: {reverseProxy.TotalConnectionsReceived:N0}{Environment.NewLine}");
             statisticsResult.AppendLine(GetActiveConnections(reverseProxy));
 
             var groupByRemoteIPs = connections.GroupBy(stat => stat.RemoteAddress)

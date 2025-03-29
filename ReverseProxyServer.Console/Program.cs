@@ -22,7 +22,7 @@ namespace ReverseProxyServer
         private static readonly CancellationTokenSource logCancellationSource = new();
         private static readonly SemaphoreSlim logSemaphore = new(1, 1);
         private static readonly SettingsManager settingsManager = new();
-        
+
         public static async Task Main(string[] args)
         {
             try
@@ -114,22 +114,22 @@ namespace ReverseProxyServer
                                 break;
                             case ConsoleKey.S:
                                 await logSemaphore.WaitAsync(logCancellationSource.Token);
-                                if (reverseProxy.TotalConnectionsReceived > 0)
+                                if (reverseProxy.TotalConnectionsReceived == 0)
                                 {
-                                    if (!settings.DatabaseEnabled)
-                                    {
-                                        await logger.LogErrorAsync("Database not enabled, operation not supported");
-                                        break;
-                                    }
-                                    StringBuilder stats = await consoleHelper.GetStatistics(consoleManager, reverseProxy, serverDBInstance);
-                                    await logger.LogInfoAsync(Environment.NewLine + Environment.NewLine + stats.ToString());
-
-                                    int numberOfLines = stats.ToString().Split(Environment.NewLine).Length;
-
-                                    consoleHelper.MoveCursorToPositionWithWait(numberOfLines, "ReverseProxy statistics");
-                                }
-                                else
                                     await logger.LogInfoAsync("No statistics generated");
+                                    break;
+                                }
+                                if (!settings.DatabaseEnabled)
+                                {
+                                    await logger.LogErrorAsync("Database not enabled, operation not supported");
+                                    break;
+                                }
+                                StringBuilder stats = await consoleHelper.GetStatistics(consoleManager, reverseProxy, serverDBInstance);
+                                await logger.LogInfoAsync(Environment.NewLine + Environment.NewLine + stats.ToString());
+
+                                int numberOfLines = stats.ToString().Split(Environment.NewLine).Length;
+
+                                consoleHelper.MoveCursorToPositionWithWait(numberOfLines, "ReverseProxy statistics");
                                 break;
                             case ConsoleKey.A:
                                 await logSemaphore.WaitAsync(logCancellationSource.Token);
