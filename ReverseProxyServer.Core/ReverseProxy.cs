@@ -6,6 +6,7 @@ using Kavalan.Logging;
 using ReverseProxyServer.Core.Enums.ProxyEnums;
 using ReverseProxyServer.Core.Helpers;
 using ReverseProxyServer.Core.Interfaces;
+using static Kavalan.Core.TaskExtensions;
 
 namespace ReverseProxyServer.Core;
 public class ReverseProxy
@@ -14,7 +15,6 @@ public class ReverseProxy
     public int TotalConnectionsReceived => totalConnectionsReceived;
     public IEnumerable<IReverseProxyConnection> ActiveConnections => [.. activeConnectionsInternal.Keys];
 
-    public delegate Task AsyncEventHandler<TEventArgs>(object sender, TEventArgs e) where TEventArgs : EventArgs;
     public event EventHandler<ConnectionEventArgs>? BeforeNewConnection;
     public event AsyncEventHandler<ConnectionEventArgs>? NewConnection;
     public event AsyncEventHandler<ConnectionDataEventArgs>? NewConnectionData;
@@ -160,7 +160,7 @@ public class ReverseProxy
                 if (incomingTcpClient.Connected)
                 {
                     using NetworkStream incomingDataStream = incomingTcpClient.GetStream();
-                    //Honey pot requests, only captured raw data and are drop request
+                    //Honey pot requests, only captured raw data and drop request
                     if (connection.ProxyType == ReverseProxyType.HoneyPot)
                     {
                         await CaptureRawDataAndDropRequest(incomingTcpClient, incomingDataStream, connection, connectionInfo);
@@ -287,18 +287,25 @@ public class ReverseProxy
     }
     private async Task<MemoryStream> ConvertNetworkStreamIntoMemory(NetworkStream networkStream, CancellationToken cancellationToken)
     {
+        if (networkStream == null)
+            throw new ArgumentNullException(nameof(networkStream), "Network stream cannot be null.");
+
+        if (!networkStream.CanRead)
+            throw new InvalidOperationException("The provided network stream is not readable.");
+
         MemoryStream memoryStream = new(settings.BufferSize);
         Memory<byte> buffer = new(new byte[settings.BufferSize]);
+
         if (!cancellationToken.IsCancellationRequested)
         {
             int bytesRead;
-            //Read packet into memory for parsing before sending to other stream
+            // Read packet into memory for parsing before sending to other stream
             while ((bytesRead = await networkStream.ReadAsyncWithTimeout(buffer, settings.ReceiveTimeout, cancellationToken)) > 0)
             {
                 await memoryStream.WriteAsync(buffer[..bytesRead], cancellationToken);
                 await memoryStream.FlushAsync(cancellationToken);
 
-                //This is only used for logging so return as soon as no data is available
+                // This is only used for logging so return as soon as no data is available
                 if (!networkStream.DataAvailable)
                     break;
             }
