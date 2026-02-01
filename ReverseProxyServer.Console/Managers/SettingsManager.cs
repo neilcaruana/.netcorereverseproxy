@@ -36,7 +36,7 @@ internal class SettingsManager
             //Keep the forwarding rules
             settings.EndPoints = settings.EndPoints.Where(s => s.ProxyType == ReverseProxyType.Forward).ToList();
 
-            //Add one sentinel endpoint
+            //Add one sentinel endpoint - KEEP ORIGINAL 1-65000 for maximum security coverage
             settings.EndPoints.Add(new ProxyEndpointConfig()
             {
                 ListeningAddress = honeypot.ListeningAddress,
@@ -44,6 +44,9 @@ internal class SettingsManager
                 ListeningPortRange = "1-65000",
                 TargetHost = "localhost"
             });
+            
+            Console.WriteLine($"🛡️ SENTINEL MODE: Full port range 1-65000 active for maximum security coverage");
+            Console.WriteLine($"🛡️ MEMORY OPTIMIZATION: Enhanced TcpListener and buffer management enabled");
         }
 
         return settings;

@@ -6,6 +6,7 @@ using ReverseProxyServer.Data.DTO;
 using ReverseProxyServer.Extensions.AbuseIPDB;
 using ReverseProxyServer.Extensions.AbuseIPDB.Data;
 using System.Diagnostics;
+using System.Net;
 
 namespace ReverseProxyServer;
 
@@ -108,14 +109,16 @@ internal class ConsoleDatabaseManager : IConsoleManager
             (AbuseIPDB_CheckedIP? abuseIPDBRecord, double dbOpTime) = await abuseIPDB_CheckedIP.SelectByPrimaryKeyAsync([connection.RemoteAddress]).TimeAsync();
             log += $"Select AbuseIPDB record {dbOpTime}ms{Environment.NewLine}";
             /*If IP is one of the following criteria query AbuseIPDB API
-             * First time IP hits
-             * No results saved in database (Usually first time IP hits or last API query failed?)
-             * Last API call was >24 hours ago (This will ensure that we don't spam the API and only query once a day per IP)
+             * Is a Public IP - and one of the below criteria is met;
+             *  First time IP hits
+             *  No results saved in database (Usually first time IP hits or last API query failed?)
+             *  Last API call was >24 hours ago (This will ensure that we don't spam the API and only query once a day per IP)
              */
             double? intervalFromLastCheck = (DateTime.Now - abuseIPDBRecord?.LastCheckedAt)?.TotalHours;
-            if (abuseIPDBRecord is null || dbIPRecord?.Hits == 1 || intervalFromLastCheck >= 24)
+            if (NetworkHelper.IsPublicIpAddress(IPAddress.Parse(connection.RemoteAddress)) && 
+                (abuseIPDBRecord is null || dbIPRecord?.Hits == 1 || intervalFromLastCheck >= 24))
             {
-                AbuseIPDBClient abuseIPDBClient = new(abuseIPDB_Key);
+                using AbuseIPDBClient abuseIPDBClient = new(abuseIPDB_Key);
                 (CheckedIP checkedIP, double APICallTime) = await abuseIPDBClient.CheckIP(connection.RemoteAddress, true, 30).TimeAsync();
                 log += $"Query AbuseIPDB API {APICallTime}ms{Environment.NewLine}";
 

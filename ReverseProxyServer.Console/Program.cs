@@ -4,6 +4,7 @@ using ReverseProxyServer.Core.Helpers;
 using ReverseProxyServer.Core.Interfaces;
 using ReverseProxyServer.Data.DTO;
 using ReverseProxyServer.Extensions.AbuseIPDB;
+using System.Diagnostics;
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -33,6 +34,7 @@ namespace ReverseProxyServer
 
                 consoleHelper.LoadSplashScreen();
                 await logger.LogInfoAsync($"{Environment.OSVersion} {RuntimeInformation.FrameworkDescription}");
+
                 await logger.LogInfoAsync("Loading settings...");
 
                 //Load settings and managers 
@@ -50,14 +52,24 @@ namespace ReverseProxyServer
                 await logger.LogInfoAsync($"Starting Reverse proxy server on {Dns.GetHostName()}");
                 serverDBInstance = consoleManager.RegisterServer(consoleHelper.GetFileVersion());
 
-                //Start the reverse proxy with the specified setting
                 ReverseProxy reverseProxy = new(settings, reverseProxyCancellationSource.Token);
+
                 reverseProxy.BeforeNewConnection += ReverseProxy_BeforeNewConnection;
                 reverseProxy.NewConnection += ReverseProxy_OnNewConnection;
                 reverseProxy.NewConnectionData += ReverseProxy_NewConnectionData;
                 reverseProxy.Notification += ReverseProxy_Notification;
                 reverseProxy.Error += ReverseProxy_Error;
-                reverseProxy.Start();
+                await reverseProxy.StartAsync();
+
+                // Log post-startup analysis
+                var postStartupProcess = Process.GetCurrentProcess();
+                var postStartupHandles = postStartupProcess.HandleCount;
+                var listenerCount = reverseProxy.GetType().GetField("listeners", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(reverseProxy) as IList<Task>;
+                
+                await logger.LogInfoAsync($"Post-startup analysis:");
+                await logger.LogInfoAsync($"  Sentinel Mode: {settings.SentinelMode}");
+                await logger.LogInfoAsync($"  Total listeners created: {listenerCount?.Count ?? 0}");
+                await logger.LogInfoAsync($"  Handle count after startup: {postStartupHandles:N0}");
 
                 //Loop and check for user actions
                 do
@@ -96,21 +108,22 @@ namespace ReverseProxyServer
                                 break;
                             case ConsoleKey.Z when keyPressedInfo.Modifiers == ConsoleModifiers.None:
                                 await logSemaphore.WaitAsync(logCancellationSource.Token);
-                                AbuseIPDBClient abuseIPDBClient = new(settings.AbuseIPDBApiKey);
-
-                                Console.Write("Enter IP Address to check: ");
-                                string ip = consoleHelper.ReadConsoleValueUntilEnter();
-                                if (!IPAddress.TryParse(ip, out IPAddress? ipAddress))
+                                using (AbuseIPDBClient abuseIPDBClient = new(settings.AbuseIPDBApiKey))
                                 {
-                                    Console.WriteLine($"Invalid IP Address: {ip}");
-                                    break;
-                                }
-                                Console.Write("Enter number of days for reports history : ");
+                                    Console.Write("Enter IP Address to check: ");
+                                    string ip = consoleHelper.ReadConsoleValueUntilEnter();
+                                    if (!IPAddress.TryParse(ip, out IPAddress? ipAddress))
+                                    {
+                                        Console.WriteLine($"Invalid IP Address: {ip}");
+                                        break;
+                                    }
+                                    Console.Write("Enter number of days for reports history : ");
 
-                                string numberOfDays = consoleHelper.ReadConsoleValueUntilEnter();
-                                int days = Convert.ToInt32(numberOfDays);
-                                await logger.LogInfoAsync(consoleHelper.FormatAbuseIPDBCheckIP(await abuseIPDBClient.CheckIP(ip, true), days, 0));
-                                await Task.Delay(2000);
+                                    string numberOfDays = consoleHelper.ReadConsoleValueUntilEnter();
+                                    int days = Convert.ToInt32(numberOfDays);
+                                    await logger.LogInfoAsync(consoleHelper.FormatAbuseIPDBCheckIP(await abuseIPDBClient.CheckIP(ip, true), days, 0));
+                                    await Task.Delay(2000);
+                                }
                                 break;
                             case ConsoleKey.S:
                                 await logSemaphore.WaitAsync(logCancellationSource.Token);
@@ -124,10 +137,10 @@ namespace ReverseProxyServer
                                     await logger.LogErrorAsync("Database not enabled, operation not supported");
                                     break;
                                 }
-                                StringBuilder stats = await consoleHelper.GetStatistics(consoleManager, reverseProxy, serverDBInstance);
-                                await logger.LogInfoAsync(Environment.NewLine + Environment.NewLine + stats.ToString());
+                                string stats = await consoleHelper.GetStatistics(consoleManager, reverseProxy, serverDBInstance);
+                                await logger.LogInfoAsync(Environment.NewLine + Environment.NewLine + stats);
 
-                                int numberOfLines = stats.ToString().Split(Environment.NewLine).Length;
+                                int numberOfLines = stats.Split(Environment.NewLine).Length;
 
                                 consoleHelper.MoveCursorToPositionWithWait(numberOfLines, "ReverseProxy statistics");
                                 break;
@@ -269,6 +282,9 @@ namespace ReverseProxyServer
                         RemoteAddress = e.RemoteAddress,
                         RemotePort = e.RemotePort
                     };
+
+                    if (newConnection.RemoteAddress == "192.168.1.100")
+                    { }
                     string registerLog = await consoleManager.RegisterConnectionDetails(newConnection, settings?.AbuseIPDBApiKey);
                     await logSemaphore.WaitAsync(logCancellationSource.Token);
                     if (!string.IsNullOrWhiteSpace(registerLog))

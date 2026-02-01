@@ -1,0 +1,28 @@
+{
+  "configProperties": {
+    // Debug configuration - optimized for debugging
+    "#if DEBUG": {
+      "System.GC.Server": false,
+      "System.GC.Concurrent": true,
+      "System.GC.RetainVM": false,
+      "System.Runtime.TieredCompilation": false,
+      "System.Runtime.TieredCompilation.QuickJit": false
+    },
+    // Release configuration - optimized for performance
+    "#if RELEASE": {
+      "System.GC.Server": true,
+      "System.GC.Concurrent": true,
+      "System.GC.RetainVM": true,
+      "System.GC.LOHThreshold": 40000,
+      "System.GC.HeapCount": 0,
+      "System.GC.NoAffinitize": false,
+      "System.GC.HeapHardLimit": 0,
+      "System.GC.HeapHardLimitPercent": 75,
+      "System.GC.HighMemoryPercent": 90,
+      "System.GC.Regions": true,
+      "System.GC.DynamicAdaptation": 1,
+      "System.Runtime.TieredCompilation": true,
+      "System.Runtime.TieredCompilation.QuickJit": true
+    }
+  }
+}
