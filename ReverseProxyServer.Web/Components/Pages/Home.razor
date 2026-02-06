@@ -1,0 +1,619 @@
+@page "/"
+@using ReverseProxyServer.Web.Services
+@using ReverseProxyServer.Data.DTO
+@using System.Diagnostics
+@inject IDashboardDataService DashboardService
+@inject IJSRuntime JS
+@rendermode InteractiveServer
+
+<PageTitle>Dashboard - Reverse Proxy Server</PageTitle>
+
+<!-- Header with Date Range -->
+<div class="dashboard-header mb-2">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div>
+            <h1 class="h5 mb-0 fw-bold">
+                <i class="bi bi-speedometer2 me-2"></i>Dashboard
+            </h1>
+            <p class="text-muted mb-0 small d-none d-md-block">Monitor your reverse proxy connections in real-time</p>
+        </div>
+        <div class="date-range-picker">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text bg-white"><i class="bi bi-calendar3"></i></span>
+                <input type="date" class="form-control" @bind="_fromDate" />
+                <span class="input-group-text bg-white">to</span>
+                <input type="date" class="form-control" @bind="_toDate" />
+                <button class="btn btn-primary" @onclick="LoadAllDataAsync" disabled="@_isLoading">
+                    @if (_isLoading)
+                    {
+                        <span class="spinner-border spinner-border-sm"></span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-arrow-clockwise"></i>
+                    }
+                </button>
+                <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" disabled="@_isLoading">
+                    Quick
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><a class="dropdown-item" href="#" @onclick="() => SetQuickRange(1)" @onclick:preventDefault>Today</a></li>
+                    <li><a class="dropdown-item" href="#" @onclick="() => SetQuickRange(7)" @onclick:preventDefault>Last 7 days</a></li>
+                    <li><a class="dropdown-item" href="#" @onclick="() => SetQuickRange(30)" @onclick:preventDefault>Last 30 days</a></li>
+                    <li><a class="dropdown-item" href="#" @onclick="() => SetQuickRange(90)" @onclick:preventDefault>Last 90 days</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="#" @onclick="() => SetQuickRange(365)" @onclick:preventDefault>Last year</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (_error != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle me-2"></i>@_error
+        <button type="button" class="btn-close" @onclick="() => _error = null"></button>
+    </div>
+}
+
+<!-- Stats Cards -->
+<div class="row g-2 mb-2">
+    <!-- Total Connections Card -->
+    <div class="col-12 col-md-6 col-xl-3">
+        <div class="stat-card stat-card-primary">
+            <div class="stat-card-body">
+                <div class="stat-icon">
+                    <i class="bi bi-plug"></i>
+                </div>
+                <div class="stat-content">
+                    <h6 class="stat-label">Total Connections</h6>
+                    @if (_connectionStats == null)
+                    {
+                        <div class="stat-value"><span class="spinner-border spinner-border-sm"></span></div>
+                        <div class="stat-breakdown">
+                            <span class="badge bg-secondary">Loading...</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="stat-value">@FormatNumber(_connectionStats.TotalConnections)</div>
+                        <div class="stat-breakdown">
+                            <span class="badge bg-success me-1">
+                                <i class="bi bi-arrow-right"></i> @FormatNumber(_connectionStats.ForwardConnections)
+                            </span>
+                            <span class="badge bg-warning text-dark">
+                                <i class="bi bi-bullseye"></i> @FormatNumber(_connectionStats.HoneypotConnections)
+                            </span>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Unique IPs Card -->
+    <div class="col-12 col-md-6 col-xl-3">
+        <div class="stat-card stat-card-info">
+            <div class="stat-card-body">
+                <div class="stat-icon">
+                    <i class="bi bi-globe"></i>
+                </div>
+                <div class="stat-content">
+                    <h6 class="stat-label">Unique IPs</h6>
+                    @if (_uniqueIPs == null)
+                    {
+                        <div class="stat-value"><span class="spinner-border spinner-border-sm"></span></div>
+                    }
+                    else
+                    {
+                        <div class="stat-value">@FormatNumber(_uniqueIPs.Value)</div>
+                    }
+                    <div class="stat-subtitle">Distinct source addresses</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Unique Ports Card -->
+    <div class="col-12 col-md-6 col-xl-3">
+        <div class="stat-card stat-card-secondary">
+            <div class="stat-card-body">
+                <div class="stat-icon">
+                    <i class="bi bi-diagram-3"></i>
+                </div>
+                <div class="stat-content">
+                    <h6 class="stat-label">Unique Ports</h6>
+                    @if (_uniquePorts == null)
+                    {
+                        <div class="stat-value"><span class="spinner-border spinner-border-sm"></span></div>
+                    }
+                    else
+                    {
+                        <div class="stat-value">@FormatNumber(_uniquePorts.Value)</div>
+                    }
+                    <div class="stat-subtitle">Target ports accessed</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Blacklisted IPs Card -->
+    <div class="col-12 col-md-6 col-xl-3">
+        <div class="stat-card stat-card-danger">
+            <div class="stat-card-body">
+                <div class="stat-icon">
+                    <i class="bi bi-shield-x"></i>
+                </div>
+                <div class="stat-content">
+                    <h6 class="stat-label">Blacklisted IPs</h6>
+                    @if (_blacklistedIPs == null)
+                    {
+                        <div class="stat-value"><span class="spinner-border spinner-border-sm"></span></div>
+                    }
+                    else
+                    {
+                        <div class="stat-value">@FormatNumber(_blacklistedIPs.Value)</div>
+                    }
+                    <div class="stat-subtitle">Blocked addresses</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Connections Table -->
+<div class="card shadow-sm">
+    <div class="card-header bg-white py-2">
+        <div class="d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 fw-semibold">
+                <i class="bi bi-list-ul me-2"></i>Connection Log
+            </h6>
+            <div class="d-flex align-items-center gap-2">
+                <span class="text-muted small">
+                    @if (_pagedConnections != null)
+                    {
+                        <span>@_pagedConnections.TotalCount.ToString("N0") total records</span>
+                    }
+                </span>
+            </div>
+        </div>
+    </div>
+    <div class="card-body p-0 position-relative">
+        @if (_isLoadingConnections && _pagedConnections != null)
+        {
+            <!-- Loading overlay for page changes -->
+            <div class="loading-overlay">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        }
+        @if (_isLoadingConnections && _pagedConnections == null)
+        {
+            <div class="d-flex justify-content-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        }
+        else if (_pagedConnections?.Items.Any() == true)
+        {
+            <div class="table-responsive @(_isLoadingConnections ? "opacity-50" : "")" style="transition: opacity 0.2s ease;">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 30px;"></th>
+                            <th>Time</th>
+                            <th>Session</th>
+                            <th>Type</th>
+                            <th>Remote IP</th>
+                            <th>Port</th>
+                            <th style="width: 30px;"></th>
+                            <th>Local Address</th>
+                            <th>Port</th>
+                        </tr>
+                        <tr class="filter-row">
+                            <td>
+                                @if (_filter.HasAnyFilter)
+                                {
+                                    <button class="btn btn-link btn-sm p-0 text-danger" @onclick="ClearFilters" title="Clear all filters">
+                                        <i class="bi bi-x-circle"></i>
+                                    </button>
+                                }
+                            </td>
+                            <td></td>
+                            <td></td>
+                            <td>
+                                <select class="form-select form-select-sm filter-input" value="@_filter.ProxyType" @onchange="e => ApplyFilter(f => f.ProxyType = e.Value?.ToString())">
+                                    <option value="">All</option>
+                                    <option value="Forward">Forward</option>
+                                    <option value="HoneyPot">Honeypot</option>
+                                </select>
+                            </td>
+                            <td>
+                                <input type="text" class="form-control form-control-sm filter-input" placeholder="Filter..." 
+                                       value="@_filter.RemoteAddress" @onchange="e => ApplyFilter(f => f.RemoteAddress = e.Value?.ToString())" />
+                            </td>
+                            <td>
+                                <input type="text" class="form-control form-control-sm filter-input" placeholder="Filter..." 
+                                       value="@_filter.RemotePort" @onchange="e => ApplyFilter(f => f.RemotePort = e.Value?.ToString())" />
+                            </td>
+                            <td></td>
+                            <td>
+                                <input type="text" class="form-control form-control-sm filter-input" placeholder="Filter..." 
+                                       value="@_filter.LocalAddress" @onchange="e => ApplyFilter(f => f.LocalAddress = e.Value?.ToString())" />
+                            </td>
+                            <td>
+                                <input type="text" class="form-control form-control-sm filter-input" placeholder="Filter..." 
+                                       value="@_filter.LocalPort" @onchange="e => ApplyFilter(f => f.LocalPort = e.Value?.ToString())" />
+                            </td>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var conn in _pagedConnections.Items)
+                        {
+                            var isExpanded = _expandedSessionId == conn.SessionId;
+                            <tr class="@(isExpanded ? "table-active" : "")" @onclick="() => ToggleRowExpand(conn.SessionId)" style="cursor: pointer;">
+                                <td class="text-center">
+                                    @if (_loadingSessionId == conn.SessionId)
+                                    {
+                                        <span class="spinner-border spinner-border-sm text-primary"></span>
+                                    }
+                                    else
+                                    {
+                                        <i class="bi @(isExpanded ? "bi-chevron-down" : "bi-chevron-right") text-muted"></i>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="fw-medium">@conn.ConnectionTime.ToString("MMM dd")</span>
+                                    <span class="text-muted">@conn.ConnectionTime.ToString("HH:mm:ss")</span>
+                                </td>
+                                <td><code class="text-muted" style="font-size: 0.7rem;">@conn.SessionId?[..8]</code></td>
+                                <td>
+                                    @if (conn.ProxyType == "HoneyPot")
+                                    {
+                                        <span class="badge bg-warning text-dark"><i class="bi bi-bullseye me-1"></i>Honeypot</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-success"><i class="bi bi-arrow-right me-1"></i>Forward</span>
+                                    }
+                                </td>
+                                <td><code class="text-primary">@conn.RemoteAddress</code></td>
+                                <td><code>@conn.RemotePort</code></td>
+                                <td class="text-center text-muted"><i class="bi bi-arrow-right"></i></td>
+                                <td><code>@conn.LocalAddress</code></td>
+                                <td><code>@conn.LocalPort</code></td>
+                            </tr>
+                            @if (isExpanded)
+                            {
+                                <tr>
+                                    <td colspan="9" class="bg-light p-0">
+                                        <div class="p-2">
+                                            @if (_connectionData?.Any() == true)
+                                            {
+                                                @foreach (var data in _connectionData)
+                                                {
+                                                    <div class="connection-data-record mb-2">
+                                                        <div class="d-flex align-items-center mb-1">
+                                                            @if (data.CommunicationDirection == "Incoming")
+                                                            {
+                                                                <span class="badge bg-info me-2"><i class="bi bi-arrow-down-left me-1"></i>Incoming</span>
+                                                                <small class="text-muted">Remote → Local</small>
+                                                            }
+                                                            else
+                                                            {
+                                                                <span class="badge bg-success me-2"><i class="bi bi-arrow-up-right me-1"></i>Outgoing</span>
+                                                                <small class="text-muted">Local → Remote</small>
+                                                            }
+                                                        </div>
+                                                        <pre class="bg-dark text-light p-2 rounded mb-0" style="max-height: 120px; overflow: auto; font-size: 0.75rem;">@data.Data</pre>
+                                                    </div>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <p class="text-muted mb-0 small"><i class="bi bi-inbox me-2"></i>No data recorded for this connection</p>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            @if (_pagedConnections.TotalPages > 1)
+            {
+                <div class="card-footer bg-white">
+                    <nav class="d-flex justify-content-between align-items-center">
+                        <span class="text-muted small">
+                            Page @_pagedConnections.Page of @_pagedConnections.TotalPages
+                        </span>
+                        <ul class="pagination pagination-sm mb-0">
+                            <li class="page-item @(!_pagedConnections.HasPreviousPage ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => GoToPage(1)" disabled="@(!_pagedConnections.HasPreviousPage)">
+                                    <i class="bi bi-chevron-double-left"></i>
+                                </button>
+                            </li>
+                            <li class="page-item @(!_pagedConnections.HasPreviousPage ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => GoToPage(_currentPage - 1)" disabled="@(!_pagedConnections.HasPreviousPage)">
+                                    <i class="bi bi-chevron-left"></i>
+                                </button>
+                            </li>
+                            @foreach (var pageNum in GetPageNumbers())
+                            {
+                                <li class="page-item @(pageNum == _currentPage ? "active" : "")">
+                                    <button class="page-link" @onclick="() => GoToPage(pageNum)">@pageNum</button>
+                                </li>
+                            }
+                            <li class="page-item @(!_pagedConnections.HasNextPage ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => GoToPage(_currentPage + 1)" disabled="@(!_pagedConnections.HasNextPage)">
+                                    <i class="bi bi-chevron-right"></i>
+                                </button>
+                            </li>
+                            <li class="page-item @(!_pagedConnections.HasNextPage ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => GoToPage(_pagedConnections.TotalPages)" disabled="@(!_pagedConnections.HasNextPage)">
+                                    <i class="bi bi-chevron-double-right"></i>
+                                </button>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="text-center py-5 text-muted">
+                <i class="bi bi-inbox display-4"></i>
+                <p class="mt-3 mb-0">No connections found in the selected date range</p>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    // Stats data
+    private ConnectionStats? _connectionStats;
+    private long? _uniqueIPs;
+    private long? _uniquePorts;
+    private long? _blacklistedIPs;
+
+    // Paged connections
+    private PagedResult<Connection>? _pagedConnections;
+    private int _currentPage = 1;
+    private const int PageSize = 25;
+    private ConnectionFilter _filter = new();
+
+    // Connection data for expanded row
+    private List<ConnectionData>? _connectionData;
+    private string? _expandedSessionId;
+    private string? _loadingSessionId;
+
+    // Loading state
+    private bool _isLoading = true;
+    private bool _isLoadingConnections = true;
+    private bool _hasInitialized = false;
+
+    // Date range
+    private DateTime _fromDate = DateTime.Today.AddDays(-30);
+    private DateTime _toDate = DateTime.Today;
+
+    private string? _error;
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender && !_hasInitialized)
+        {
+            _hasInitialized = true;
+            _ = LoadAllDataAsync();
+        }
+    }
+
+    private async Task LoadAllDataAsync()
+    {
+        var totalStopwatch = Stopwatch.StartNew();
+        await LogToConsoleAsync("⏱️ Starting dashboard data load...");
+
+        _error = null;
+        _connectionStats = null;
+        _uniqueIPs = null;
+        _uniquePorts = null;
+        _blacklistedIPs = null;
+        _isLoading = true;
+        _isLoadingConnections = true;
+        _currentPage = 1;
+        _expandedSessionId = null;
+        _connectionData = null;
+        _filter = new();
+
+        await InvokeAsync(StateHasChanged);
+
+        var toDateEnd = _toDate.Date.AddDays(1).AddSeconds(-1);
+
+        // Load all stats in parallel
+        var tasks = new List<Task>
+        {
+            LoadWithTimingAsync("ConnectionStats", async () =>
+            {
+                _connectionStats = await DashboardService.GetConnectionStatsAsync(_fromDate.Date, toDateEnd);
+                await InvokeAsync(StateHasChanged);
+            }),
+            LoadWithTimingAsync("UniqueIPs", async () =>
+            {
+                _uniqueIPs = await DashboardService.GetUniqueIPsCountAsync(_fromDate.Date, toDateEnd);
+                await InvokeAsync(StateHasChanged);
+            }),
+            LoadWithTimingAsync("UniquePorts", async () =>
+            {
+                _uniquePorts = await DashboardService.GetUniquePortsCountAsync(_fromDate.Date, toDateEnd);
+                await InvokeAsync(StateHasChanged);
+            }),
+            LoadWithTimingAsync("BlacklistedIPs", async () =>
+            {
+                _blacklistedIPs = await DashboardService.GetBlacklistedIPsCountAsync();
+                await InvokeAsync(StateHasChanged);
+            }),
+            LoadWithTimingAsync("Connections", async () =>
+            {
+                _pagedConnections = await DashboardService.GetConnectionsPagedAsync(_fromDate.Date, toDateEnd, _currentPage, PageSize, _filter);
+                _isLoadingConnections = false;
+                await InvokeAsync(StateHasChanged);
+            })
+        };
+
+        await Task.WhenAll(tasks);
+
+        _isLoading = false;
+        totalStopwatch.Stop();
+        await LogToConsoleAsync($"✅ Dashboard fully loaded in {totalStopwatch.ElapsedMilliseconds}ms");
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadWithTimingAsync(string name, Func<Task> action)
+    {
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            await action();
+            await LogToConsoleAsync($"📊 {name} loaded in {sw.ElapsedMilliseconds}ms");
+        }
+        catch (Exception ex)
+        {
+            _error ??= ex.Message;
+            await LogToConsoleAsync($"❌ {name} failed: {ex.Message}", true);
+        }
+    }
+
+    private async Task LoadConnectionsPageAsync()
+    {
+        var sw = Stopwatch.StartNew();
+        _isLoadingConnections = true;
+
+        // Force immediate UI update to show loading state
+        StateHasChanged();
+        await Task.Yield();
+
+        try
+        {
+            var toDateEnd = _toDate.Date.AddDays(1).AddSeconds(-1);
+            _pagedConnections = await DashboardService.GetConnectionsPagedAsync(_fromDate.Date, toDateEnd, _currentPage, PageSize, _filter);
+            await LogToConsoleAsync($"📋 Connections page {_currentPage} loaded in {sw.ElapsedMilliseconds}ms ({_pagedConnections.Items.Count} of {_pagedConnections.TotalCount} records)");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            await LogToConsoleAsync($"❌ Connections failed: {ex.Message}", true);
+        }
+        finally
+        {
+            _isLoadingConnections = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task GoToPage(int page)
+    {
+        if (page < 1 || (_pagedConnections != null && page > _pagedConnections.TotalPages)) return;
+        if (_isLoadingConnections) return; // Prevent double-clicks
+
+        _currentPage = page;
+        _expandedSessionId = null;
+        _connectionData = null;
+        await LoadConnectionsPageAsync();
+    }
+
+    private async Task SetQuickRange(int days)
+    {
+        _fromDate = DateTime.Today.AddDays(-days + 1);
+        _toDate = DateTime.Today;
+        await LoadAllDataAsync();
+    }
+
+    private async Task ApplyFilter(Action<ConnectionFilter> update)
+    {
+        update(_filter);
+        _currentPage = 1;
+        _expandedSessionId = null;
+        _connectionData = null;
+        await LoadConnectionsPageAsync();
+    }
+
+    private async Task ClearFilters()
+    {
+        _filter = new();
+        _currentPage = 1;
+        _expandedSessionId = null;
+        _connectionData = null;
+        await LoadConnectionsPageAsync();
+    }
+
+    private async Task ToggleRowExpand(string? sessionId)
+    {
+        if (string.IsNullOrEmpty(sessionId)) return;
+
+        if (_expandedSessionId == sessionId)
+        {
+            _expandedSessionId = null;
+            _connectionData = null;
+            return;
+        }
+
+        _loadingSessionId = sessionId;
+        _expandedSessionId = sessionId;
+        _connectionData = null;
+        StateHasChanged();
+
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            _connectionData = await DashboardService.GetConnectionDataAsync(sessionId);
+            await LogToConsoleAsync($"📦 ConnectionData loaded in {sw.ElapsedMilliseconds}ms (Session: {sessionId[..8]}..., Records: {_connectionData?.Count ?? 0})");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            await LogToConsoleAsync($"❌ ConnectionData failed: {ex.Message}", true);
+        }
+        finally
+        {
+            _loadingSessionId = null;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private IEnumerable<int> GetPageNumbers()
+    {
+        if (_pagedConnections == null) yield break;
+
+        int start = Math.Max(1, _currentPage - 2);
+        int end = Math.Min(_pagedConnections.TotalPages, _currentPage + 2);
+
+        for (int i = start; i <= end; i++)
+            yield return i;
+    }
+
+    private static string FormatNumber(long number) => number switch
+    {
+        >= 1_000_000 => $"{number / 1_000_000.0:F1}M",
+        >= 1_000 => $"{number / 1_000.0:F1}K",
+        _ => number.ToString("N0")
+    };
+
+    private async Task LogToConsoleAsync(string message, bool isError = false)
+    {
+        try
+        {
+            var jsMethod = isError ? "console.error" : "console.log";
+            var timestamp = DateTime.Now.ToString("HH:mm:ss.fff");
+            await JS.InvokeVoidAsync("eval", $"{jsMethod}('[{timestamp}] {message.Replace("'", "\\'")}')");
+        }
+        catch
+        {
+            // Ignore JS interop errors during prerendering
+        }
+    }
+}

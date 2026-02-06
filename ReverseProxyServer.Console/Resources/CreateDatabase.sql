@@ -134,6 +134,14 @@ CREATE INDEX IX_Connections_SessionID ON Connections (
     SessionID
 );
 
+CREATE INDEX IX_Connections_ConnectionTime ON Connections (
+    ConnectionTime
+);
+
+CREATE INDEX IX_Connections_ProxyType ON Connections (
+    ProxyType
+);
+
 CREATE INDEX IX_ConnectionData_SessionID ON ConnectionsData (
     SessionId
 );
