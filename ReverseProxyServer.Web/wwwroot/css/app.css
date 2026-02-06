@@ -30,6 +30,7 @@ main {
     transition: all 0.3s ease;
     overflow: hidden;
     position: relative;
+    height: 100%;
 }
 
 .stat-card:hover {
@@ -103,7 +104,7 @@ main {
 }
 
 .stat-breakdown {
-    margin-top: 0.375rem;
+    margin-top: 0.125rem;
 }
 
 /* Card styles */

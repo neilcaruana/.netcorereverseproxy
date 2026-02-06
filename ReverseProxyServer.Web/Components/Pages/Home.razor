@@ -49,6 +49,20 @@
     </div>
 </div>
 
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-3">
+    <li class="nav-item">
+        <button class="nav-link @(_activeTab == "statistics" ? "active" : "")" @onclick='() => _activeTab = "statistics"'>
+            <i class="bi bi-bar-chart me-1"></i>Statistics
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link @(_activeTab == "realtime" ? "active" : "")" @onclick='() => _activeTab = "realtime"'>
+            <i class="bi bi-broadcast me-1"></i>Realtime
+        </button>
+    </li>
+</ul>
+
 @if (_error != null)
 {
     <div class="alert alert-danger alert-dismissible fade show" role="alert">
@@ -57,6 +71,8 @@
     </div>
 }
 
+@if (_activeTab == "statistics")
+{
 <!-- Stats Cards -->
 <div class="row g-2 mb-2">
     <!-- Total Connections Card -->
@@ -71,20 +87,14 @@
                     @if (_connectionStats == null)
                     {
                         <div class="stat-value"><span class="spinner-border spinner-border-sm"></span></div>
-                        <div class="stat-breakdown">
-                            <span class="badge bg-secondary">Loading...</span>
-                        </div>
+                        <div class="stat-subtitle">Loading...</div>
                     }
                     else
                     {
                         <div class="stat-value">@FormatNumber(_connectionStats.TotalConnections)</div>
-                        <div class="stat-breakdown">
-                            <span class="badge bg-success me-1">
-                                <i class="bi bi-arrow-right"></i> @FormatNumber(_connectionStats.ForwardConnections)
-                            </span>
-                            <span class="badge bg-warning text-dark">
-                                <i class="bi bi-bullseye"></i> @FormatNumber(_connectionStats.HoneypotConnections)
-                            </span>
+                        <div class="stat-subtitle">
+                            <span class="text-success fw-semibold">@FormatNumber(_connectionStats.ForwardConnections)</span> Forward · 
+                            <span class="text-warning fw-semibold">@FormatNumber(_connectionStats.HoneypotConnections)</span> HoneyPot
                         </div>
                     }
                 </div>
@@ -176,6 +186,24 @@
                         <span>@_pagedConnections.TotalCount.ToString("N0") total records</span>
                     }
                 </span>
+                @if (_pagedConnections?.SessionsWithData.Count > 0)
+                {
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-secondary" @onclick="ExpandAll" disabled="@_isExpandingAll" title="Expand all">
+                            @if (_isExpandingAll)
+                            {
+                                <span class="spinner-border spinner-border-sm"></span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-arrows-expand"></i>
+                            }
+                        </button>
+                        <button class="btn btn-outline-secondary" @onclick="CollapseAll" title="Collapse all">
+                            <i class="bi bi-arrows-collapse"></i>
+                        </button>
+                    </div>
+                }
             </div>
         </div>
     </div>
@@ -253,16 +281,21 @@
                     <tbody>
                         @foreach (var conn in _pagedConnections.Items)
                         {
-                            var isExpanded = _expandedSessionId == conn.SessionId;
+                            var isExpanded = _expandedSessions.ContainsKey(conn.SessionId);
+                            var hasData = _pagedConnections.SessionsWithData.Contains(conn.SessionId);
                             <tr class="@(isExpanded ? "table-active" : "")" @onclick="() => ToggleRowExpand(conn.SessionId)" style="cursor: pointer;">
                                 <td class="text-center">
                                     @if (_loadingSessionId == conn.SessionId)
                                     {
                                         <span class="spinner-border spinner-border-sm text-primary"></span>
                                     }
+                                    else if (hasData)
+                                    {
+                                        <i class="bi @(isExpanded ? "bi-chevron-down" : "bi-chevron-right") text-primary"></i>
+                                    }
                                     else
                                     {
-                                        <i class="bi @(isExpanded ? "bi-chevron-down" : "bi-chevron-right") text-muted"></i>
+                                        <i class="bi bi-dash text-muted"></i>
                                     }
                                 </td>
                                 <td>
@@ -288,12 +321,13 @@
                             </tr>
                             @if (isExpanded)
                             {
+                                var sessionData = _expandedSessions[conn.SessionId];
                                 <tr>
                                     <td colspan="9" class="bg-light p-0">
                                         <div class="p-2">
-                                            @if (_connectionData?.Any() == true)
+                                            @if (sessionData?.Any() == true)
                                             {
-                                                @foreach (var data in _connectionData)
+                                                @foreach (var data in sessionData)
                                                 {
                                                     <div class="connection-data-record mb-2">
                                                         <div class="d-flex align-items-center mb-1">
@@ -374,8 +408,23 @@
         }
     </div>
 </div>
+} <!-- end statistics tab -->
+
+@if (_activeTab == "realtime")
+{
+<div class="card shadow-sm">
+    <div class="card-body text-center py-5">
+        <i class="bi bi-cone-striped display-3 text-warning"></i>
+        <h4 class="mt-3 fw-semibold">Under Construction</h4>
+        <p class="text-muted">Realtime monitoring is coming soon.</p>
+    </div>
+</div>
+}
 
 @code {
+    // Tab state
+    private string _activeTab = "statistics";
+
     // Stats data
     private ConnectionStats? _connectionStats;
     private long? _uniqueIPs;
@@ -388,14 +437,14 @@
     private const int PageSize = 25;
     private ConnectionFilter _filter = new();
 
-    // Connection data for expanded row
-    private List<ConnectionData>? _connectionData;
-    private string? _expandedSessionId;
+    // Connection data for expanded rows
+    private Dictionary<string, List<ConnectionData>?> _expandedSessions = new();
     private string? _loadingSessionId;
 
     // Loading state
     private bool _isLoading = true;
     private bool _isLoadingConnections = true;
+    private bool _isExpandingAll = false;
     private bool _hasInitialized = false;
 
     // Date range
@@ -426,8 +475,7 @@
         _isLoading = true;
         _isLoadingConnections = true;
         _currentPage = 1;
-        _expandedSessionId = null;
-        _connectionData = null;
+        _expandedSessions.Clear();
         _filter = new();
 
         await InvokeAsync(StateHasChanged);
@@ -521,8 +569,7 @@
         if (_isLoadingConnections) return; // Prevent double-clicks
 
         _currentPage = page;
-        _expandedSessionId = null;
-        _connectionData = null;
+        _expandedSessions.Clear();
         await LoadConnectionsPageAsync();
     }
 
@@ -537,8 +584,7 @@
     {
         update(_filter);
         _currentPage = 1;
-        _expandedSessionId = null;
-        _connectionData = null;
+        _expandedSessions.Clear();
         await LoadConnectionsPageAsync();
     }
 
@@ -546,8 +592,7 @@
     {
         _filter = new();
         _currentPage = 1;
-        _expandedSessionId = null;
-        _connectionData = null;
+        _expandedSessions.Clear();
         await LoadConnectionsPageAsync();
     }
 
@@ -555,27 +600,27 @@
     {
         if (string.IsNullOrEmpty(sessionId)) return;
 
-        if (_expandedSessionId == sessionId)
+        if (_expandedSessions.ContainsKey(sessionId))
         {
-            _expandedSessionId = null;
-            _connectionData = null;
+            _expandedSessions.Remove(sessionId);
             return;
         }
 
         _loadingSessionId = sessionId;
-        _expandedSessionId = sessionId;
-        _connectionData = null;
+        _expandedSessions[sessionId] = null;
         StateHasChanged();
 
         var sw = Stopwatch.StartNew();
         try
         {
-            _connectionData = await DashboardService.GetConnectionDataAsync(sessionId);
-            await LogToConsoleAsync($"📦 ConnectionData loaded in {sw.ElapsedMilliseconds}ms (Session: {sessionId[..8]}..., Records: {_connectionData?.Count ?? 0})");
+            var data = await DashboardService.GetConnectionDataAsync(sessionId);
+            _expandedSessions[sessionId] = data;
+            await LogToConsoleAsync($"📦 ConnectionData loaded in {sw.ElapsedMilliseconds}ms (Session: {sessionId[..8]}..., Records: {data?.Count ?? 0})");
         }
         catch (Exception ex)
         {
             _error = ex.Message;
+            _expandedSessions.Remove(sessionId);
             await LogToConsoleAsync($"❌ ConnectionData failed: {ex.Message}", true);
         }
         finally
@@ -583,6 +628,44 @@
             _loadingSessionId = null;
             await InvokeAsync(StateHasChanged);
         }
+    }
+
+    private async Task ExpandAll()
+    {
+        if (_pagedConnections == null) return;
+        _isExpandingAll = true;
+        StateHasChanged();
+        await Task.Yield();
+
+        try
+        {
+            var sessionsToExpand = _pagedConnections.SessionsWithData
+                .Where(s => !_expandedSessions.ContainsKey(s))
+                .ToList();
+
+            foreach (var sessionId in sessionsToExpand)
+            {
+                try
+                {
+                    var data = await DashboardService.GetConnectionDataAsync(sessionId);
+                    _expandedSessions[sessionId] = data;
+                }
+                catch (Exception ex)
+                {
+                    await LogToConsoleAsync($"❌ ExpandAll failed for {sessionId[..8]}: {ex.Message}", true);
+                }
+            }
+        }
+        finally
+        {
+            _isExpandingAll = false;
+            StateHasChanged();
+        }
+    }
+
+    private void CollapseAll()
+    {
+        _expandedSessions.Clear();
     }
 
     private IEnumerable<int> GetPageNumbers()
