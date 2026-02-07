@@ -12,6 +12,7 @@ public interface IProxyConfig
     public int BufferSize { get; init; }
     public bool SentinelMode { get; init; }
     public LogLevel LogLevel { get; init; }
+    public string DashboardUrl { get; init; }
     public IList<IProxyEndpointConfig> EndPoints { get; set; }
     public int FaultyEndpoints { get; set; }
 }

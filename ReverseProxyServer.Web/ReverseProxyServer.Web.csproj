@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Kavalan\Kavalan.Data.Sqlite.Repositories\Kavalan.Data.Sqlite.Repositories.csproj" />
+    <ProjectReference Include="..\..\Kavalan\Kavalan.Logging\Kavalan.Logging.csproj" />
     <ProjectReference Include="..\ReverseProxyServer.Data\ReverseProxyServer.Data.csproj" />
   </ItemGroup>
 

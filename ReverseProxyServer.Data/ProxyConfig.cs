@@ -15,6 +15,7 @@ public class ProxyConfig : IProxyConfig
     public int SendTimeout { get; init; }
     public int ReceiveTimeout { get; init; }
     public bool SentinelMode { get; init; } = false;
+    public string DashboardUrl { get; init; } = string.Empty;
     public IList<IProxyEndpointConfig> EndPoints { get; set; }
     [JsonIgnore]
     public int FaultyEndpoints { get; set; }

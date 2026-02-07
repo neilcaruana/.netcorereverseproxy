@@ -1,4 +1,5 @@
 using ReverseProxyServer.Web.Components;
+using ReverseProxyServer.Web.Hubs;
 using ReverseProxyServer.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -6,6 +7,8 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+builder.Services.AddSignalR();
 
 // Register the dashboard data service
 builder.Services.AddScoped<IDashboardDataService, DashboardDataService>();
@@ -28,5 +31,7 @@ app.UseAntiforgery();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
+
+app.MapHub<ProxyEventHub>("/hubs/proxy-events");
 
 app.Run();

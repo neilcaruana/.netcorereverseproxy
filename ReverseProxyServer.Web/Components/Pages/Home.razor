@@ -1,9 +1,13 @@
 @page "/"
 @using ReverseProxyServer.Web.Services
 @using ReverseProxyServer.Data.DTO
+@using Kavalan.Logging
+@using Microsoft.AspNetCore.SignalR.Client
 @using System.Diagnostics
 @inject IDashboardDataService DashboardService
 @inject IJSRuntime JS
+@inject NavigationManager Navigation
+@implements IAsyncDisposable
 @rendermode InteractiveServer
 
 <PageTitle>Dashboard - Reverse Proxy Server</PageTitle>
@@ -413,10 +417,75 @@
 @if (_activeTab == "realtime")
 {
 <div class="card shadow-sm">
-    <div class="card-body text-center py-5">
-        <i class="bi bi-cone-striped display-3 text-warning"></i>
-        <h4 class="mt-3 fw-semibold">Under Construction</h4>
-        <p class="text-muted">Realtime monitoring is coming soon.</p>
+    <div class="card-header bg-white py-2">
+        <div class="d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 fw-semibold">
+                <i class="bi bi-broadcast me-2"></i>Realtime Event Feed
+                @if (_hubConnected)
+                {
+                    <span class="badge bg-success ms-2" style="font-size: 0.6rem;">CONNECTED</span>
+                }
+                else
+                {
+                    <span class="badge bg-danger ms-2" style="font-size: 0.6rem;">DISCONNECTED</span>
+                }
+            </h6>
+            <div class="d-flex align-items-center gap-2">
+                <span class="text-muted small">@_liveEvents.Count events</span>
+                <button class="btn btn-outline-secondary btn-sm" @onclick="ClearLiveEvents" title="Clear events">
+                    <i class="bi bi-trash"></i>
+                </button>
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" id="autoScroll" @bind="_autoScroll" />
+                    <label class="form-check-label small" for="autoScroll">Auto-scroll</label>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        @if (_liveEvents.Count == 0)
+        {
+            <div class="text-center py-5 text-muted">
+                <i class="bi bi-broadcast display-4"></i>
+                <p class="mt-3 mb-0">Waiting for events from the reverse proxy server...</p>
+                <p class="small">Ensure the proxy is running with <code>DashboardUrl</code> configured.</p>
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+                <table class="table table-sm table-hover mb-0 align-middle" style="font-size: 0.8rem;">
+                    <thead class="table-light sticky-top">
+                        <tr>
+                            <th style="width: 140px;">Time</th>
+                            <th style="width: 80px;">Level</th>
+                            <th style="width: 100px;">Session</th>
+                            <th>Message</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var evt in _liveEvents)
+                        {
+                            <tr class="@GetLogLevelRowClass(evt.Level)">
+                                <td class="text-nowrap">
+                                    <span class="fw-medium">@evt.Timestamp.ToString("HH:mm:ss")</span><span class="text-muted">.@evt.Timestamp.ToString("fff")</span>
+                                </td>
+                                <td>
+                                    <span class="badge @GetLogLevelBadgeClass(evt.Level)" style="font-size: 0.65rem;">@evt.Level</span>
+                                </td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(evt.CorrelationId))
+                                    {
+                                        <code class="text-muted" style="font-size: 0.7rem;">@evt.CorrelationId[..Math.Min(8, evt.CorrelationId.Length)]</code>
+                                    }
+                                </td>
+                                <td class="text-break">@evt.Message</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
     </div>
 </div>
 }
@@ -424,6 +493,13 @@
 @code {
     // Tab state
     private string _activeTab = "statistics";
+
+    // Realtime state
+    private HubConnection? _hubConnection;
+    private bool _hubConnected;
+    private readonly List<LogEvent> _liveEvents = new();
+    private bool _autoScroll = true;
+    private const int MaxLiveEvents = 500;
 
     // Stats data
     private ConnectionStats? _connectionStats;
@@ -459,6 +535,47 @@
         {
             _hasInitialized = true;
             _ = LoadAllDataAsync();
+            _ = StartHubConnectionAsync();
+        }
+    }
+
+    private async Task StartHubConnectionAsync()
+    {
+        try
+        {
+            _hubConnection = new HubConnectionBuilder()
+                .WithUrl(Navigation.ToAbsoluteUri("/hubs/proxy-events"))
+                .WithAutomaticReconnect()
+                .Build();
+
+            _hubConnection.On<LogEvent>("ReceiveLogEvent", async (logEvent) =>
+            {
+                _liveEvents.Add(logEvent);
+                if (_liveEvents.Count > MaxLiveEvents)
+                    _liveEvents.RemoveAt(0);
+
+                await InvokeAsync(StateHasChanged);
+            });
+
+            _hubConnection.Reconnected += _ =>
+            {
+                _hubConnected = true;
+                return InvokeAsync(StateHasChanged);
+            };
+
+            _hubConnection.Closed += _ =>
+            {
+                _hubConnected = false;
+                return InvokeAsync(StateHasChanged);
+            };
+
+            await _hubConnection.StartAsync();
+            _hubConnected = true;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch
+        {
+            _hubConnected = false;
         }
     }
 
@@ -697,6 +814,34 @@
         catch
         {
             // Ignore JS interop errors during prerendering
+        }
+    }
+
+    // Realtime helpers
+    private void ClearLiveEvents() => _liveEvents.Clear();
+
+    private static string GetLogLevelBadgeClass(Kavalan.Logging.LogLevel level) => level switch
+    {
+        Kavalan.Logging.LogLevel.Error => "bg-danger",
+        Kavalan.Logging.LogLevel.Warning => "bg-warning text-dark",
+        Kavalan.Logging.LogLevel.Info => "bg-info text-dark",
+        Kavalan.Logging.LogLevel.Request => "bg-primary",
+        Kavalan.Logging.LogLevel.Debug => "bg-secondary",
+        _ => "bg-light text-dark"
+    };
+
+    private static string GetLogLevelRowClass(Kavalan.Logging.LogLevel level) => level switch
+    {
+        Kavalan.Logging.LogLevel.Error => "table-danger",
+        Kavalan.Logging.LogLevel.Warning => "table-warning",
+        _ => ""
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hubConnection is not null)
+        {
+            await _hubConnection.DisposeAsync();
         }
     }
 }

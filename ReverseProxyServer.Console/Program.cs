@@ -32,6 +32,7 @@ namespace ReverseProxyServer
                 Console.TreatControlCAsInput = true;
                 Console.OutputEncoding = Encoding.UTF8;
 
+                //Load splash screen and initial logs
                 consoleHelper.LoadSplashScreen();
                 await logger.LogInfoAsync($"{Environment.OSVersion} {RuntimeInformation.FrameworkDescription}");
 
@@ -39,13 +40,18 @@ namespace ReverseProxyServer
 
                 //Load settings and managers 
                 settings = settingsManager.LoadProxySettings();
+
+                //Allow proxy to work without a database and log only in console
                 if (string.IsNullOrWhiteSpace(settings.DatabasePath))
                     consoleManager = new ConsoleBlankManager();
                 else
                     consoleManager = new ConsoleDatabaseManager(settings.DatabasePath);
 
-                logger = LoggerFactory.CreateCompositeLogger(settings.LogLevel, logCancellationSource.Token);
+                //Create composite loggers with SignalR support for dashboard
+                await logger.LogInfoAsync("Loading loggers...");
+                logger = await LoggerFactory.CreateCompositeLoggerWithSignalR(settings.LogLevel, settings.DashboardUrl, logCancellationSource.Token);
 
+                //Check if in Sentinal mode (Listen on all available ports on the machine)
                 if (settings.SentinelMode)
                     await logger.LogInfoAsync($"Sentinel mode detected!");
 
@@ -62,14 +68,12 @@ namespace ReverseProxyServer
                 await reverseProxy.StartAsync();
 
                 // Log post-startup analysis
-                var postStartupProcess = Process.GetCurrentProcess();
-                var postStartupHandles = postStartupProcess.HandleCount;
                 var listenerCount = reverseProxy.GetType().GetField("listeners", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(reverseProxy) as IList<Task>;
                 
                 await logger.LogInfoAsync($"Post-startup analysis:");
                 await logger.LogInfoAsync($"  Sentinel Mode: {settings.SentinelMode}");
                 await logger.LogInfoAsync($"  Total listeners created: {listenerCount?.Count ?? 0}");
-                await logger.LogInfoAsync($"  Handle count after startup: {postStartupHandles:N0}");
+                await logger.LogInfoAsync($"  Handle count after startup: {Process.GetCurrentProcess().HandleCount:N0}");
 
                 //Loop and check for user actions
                 do
