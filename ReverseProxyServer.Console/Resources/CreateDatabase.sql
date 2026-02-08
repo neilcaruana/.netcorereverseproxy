@@ -118,30 +118,34 @@ BEGIN
 END;
 
 --Indexes
-CREATE INDEX IX_Connections_RemoteAddress ON Connections (
+CREATE INDEX IF NOT EXISTS IX_Connections_RemoteAddress ON Connections (
     RemoteAddress
 );
 
-CREATE INDEX IX_Connections_InstanceID ON Connections (
+CREATE INDEX IF NOT EXISTS IX_Connections_InstanceID ON Connections (
     InstanceId
 );
 
-CREATE INDEX IX_Connections_ID ON Connections (
+CREATE INDEX IF NOT EXISTS IX_Connections_ID ON Connections (
     Id
 );
 
-CREATE INDEX IX_Connections_SessionID ON Connections (
+CREATE INDEX IF NOT EXISTS IX_Connections_SessionID ON Connections (
     SessionID
 );
 
-CREATE INDEX IX_Connections_ConnectionTime ON Connections (
+CREATE INDEX IF NOT EXISTS IX_Connections_ConnectionTime ON Connections (
     ConnectionTime
 );
 
-CREATE INDEX IX_Connections_ProxyType ON Connections (
+CREATE INDEX IF NOT EXISTS IX_Connections_ConnectionTime_Desc ON Connections (
+    ConnectionTime DESC
+);
+
+CREATE INDEX IF NOT EXISTS IX_Connections_ProxyType ON Connections (
     ProxyType
 );
 
-CREATE INDEX IX_ConnectionData_SessionID ON ConnectionsData (
+CREATE INDEX IF NOT EXISTS IX_ConnectionData_SessionID ON ConnectionsData (
     SessionId
 );

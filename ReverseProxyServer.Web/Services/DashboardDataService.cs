@@ -81,11 +81,17 @@ public class DashboardDataService : IDashboardDataService
             SELECT c.Id, c.SessionId, c.InstanceId, c.ConnectionTime, c.ProxyType, 
                    c.LocalAddress, c.LocalPort, c.TargetHost, c.TargetPort, 
                    c.RemoteAddress, c.RemotePort,
-                   EXISTS(SELECT 1 FROM ConnectionsData cd WHERE cd.SessionId = c.SessionId) AS HasData
+                   EXISTS(SELECT 1 FROM ConnectionsData cd WHERE cd.SessionId = c.SessionId) AS HasData,
+                   COALESCE(ip.IsBlacklisted, 0) AS IsBlacklisted
             FROM Connections c
-            WHERE {whereClause}
+            LEFT JOIN IPAddressHistory ip ON c.RemoteAddress = ip.IPAddress
+            INNER JOIN (
+                SELECT c.Id FROM Connections c
+                WHERE {whereClause}
+                ORDER BY c.ConnectionTime DESC
+                LIMIT @PageSize OFFSET @Offset
+            ) AS page ON c.Id = page.Id
             ORDER BY c.ConnectionTime DESC
-            LIMIT @PageSize OFFSET @Offset
             """;
 
         string countSql = $"SELECT COUNT(*) FROM Connections c WHERE {whereClause}";
@@ -132,6 +138,7 @@ public class DashboardDataService : IDashboardDataService
 
         var connections = new List<Connection>();
         var sessionsWithData = new HashSet<string>();
+        var blacklistedIPs = new HashSet<string>();
 
         using var reader = await dataCmd.ExecuteReaderAsync();
         while (await reader.ReadAsync())
@@ -155,6 +162,9 @@ public class DashboardDataService : IDashboardDataService
 
             if (reader.GetInt64(reader.GetOrdinal("HasData")) == 1)
                 sessionsWithData.Add(conn.SessionId);
+
+            if (reader.GetInt64(reader.GetOrdinal("IsBlacklisted")) == 1)
+                blacklistedIPs.Add(conn.RemoteAddress);
         }
 
         return new PagedResult<Connection>
@@ -163,7 +173,8 @@ public class DashboardDataService : IDashboardDataService
             TotalCount = (int)totalCount,
             Page = page,
             PageSize = pageSize,
-            SessionsWithData = sessionsWithData
+            SessionsWithData = sessionsWithData,
+            BlacklistedIPs = blacklistedIPs
         };
     }
 

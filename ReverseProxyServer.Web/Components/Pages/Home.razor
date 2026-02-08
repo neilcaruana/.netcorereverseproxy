@@ -3,10 +3,12 @@
 @using ReverseProxyServer.Data.DTO
 @using Kavalan.Logging
 @using Microsoft.AspNetCore.SignalR.Client
+@using Microsoft.Extensions.Options
 @using System.Diagnostics
 @inject IDashboardDataService DashboardService
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
+@inject IOptions<DatabaseSettings> DatabaseSettings
 @implements IAsyncDisposable
 @rendermode InteractiveServer
 
@@ -63,6 +65,11 @@
     <li class="nav-item">
         <button class="nav-link @(_activeTab == "realtime" ? "active" : "")" @onclick='() => _activeTab = "realtime"'>
             <i class="bi bi-broadcast me-1"></i>Realtime
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link @(_activeTab == "about" ? "active" : "")" @onclick='() => _activeTab = "about"'>
+            <i class="bi bi-info-circle me-1"></i>About
         </button>
     </li>
 </ul>
@@ -317,7 +324,7 @@
                                         <span class="badge bg-success"><i class="bi bi-arrow-right me-1"></i>Forward</span>
                                     }
                                 </td>
-                                <td><code class="text-primary">@conn.RemoteAddress</code></td>
+                                <td><code class="text-primary">@conn.RemoteAddress</code>@if (_pagedConnections.BlacklistedIPs.Contains(conn.RemoteAddress)){<i class="bi bi-shield-x text-danger ms-1" title="Blacklisted"></i>}</td>
                                 <td><code>@conn.RemotePort</code></td>
                                 <td class="text-center text-muted"><i class="bi bi-arrow-right"></i></td>
                                 <td><code>@conn.LocalAddress</code></td>
@@ -486,6 +493,74 @@
                 </table>
             </div>
         }
+    </div>
+</div>
+}
+
+@if (_activeTab == "about")
+{
+<div class="card shadow-sm">
+    <div class="card-header bg-white py-2">
+        <h6 class="mb-0 fw-semibold">
+            <i class="bi bi-info-circle me-2"></i>About
+        </h6>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-lg-8">
+                <h5 class="fw-bold">Reverse Proxy Server</h5>
+                <p class="text-muted">
+                    A high-performance, custom-built TCP reverse proxy server written in C# targeting .NET 9.
+                    Designed for both <strong>traffic forwarding</strong> and <strong>honeypot monitoring</strong>,
+                    it captures and logs all connection activity in real-time to a local SQLite database.
+                </p>
+                <h6 class="fw-semibold mt-4">Key Features</h6>
+                <ul class="text-muted">
+                    <li><strong>Forward Proxy</strong> — Relays TCP traffic to configured target hosts with full request/response capture</li>
+                    <li><strong>Honeypot Mode</strong> — Listens on configurable port ranges, captures attacker payloads, and drops connections</li>
+                    <li><strong>Sentinel Mode</strong> — Listens on all 65,000 ports for maximum security coverage</li>
+                    <li><strong>AbuseIPDB Integration</strong> — Cross-references connecting IPs against the AbuseIPDB threat database</li>
+                    <li><strong>IP Blacklisting</strong> — Blocks known malicious IPs from reaching internal services</li>
+                    <li><strong>Real-time Dashboard</strong> — Blazor Server UI with SignalR-powered live event streaming</li>
+                    <li><strong>Async Logging</strong> — Composite logger supporting console, file, and SignalR outputs simultaneously</li>
+                </ul>
+                <h6 class="fw-semibold mt-4">Architecture</h6>
+                <ul class="text-muted">
+                    <li><strong>ReverseProxyServer.Core</strong> — TCP listener and traffic relay engine using System.IO.Pipelines</li>
+                    <li><strong>ReverseProxyServer.Console</strong> — Console application for running the proxy server</li>
+                    <li><strong>ReverseProxyServer.Web</strong> — Blazor Server dashboard for statistics and real-time monitoring</li>
+                    <li><strong>ReverseProxyServer.Data</strong> — DTOs and data models</li>
+                    <li><strong>Kavalan</strong> — Shared libraries for SQLite data access, logging, and utilities</li>
+                </ul>
+            </div>
+            <div class="col-lg-4">
+                <div class="card bg-light border-0">
+                    <div class="card-body">
+                        <h6 class="fw-semibold mb-3"><i class="bi bi-gear me-2"></i>Configuration</h6>
+                        <div class="mb-3">
+                            <small class="text-muted d-block">Database Path</small>
+                            <code style="font-size: 0.75rem; word-break: break-all;">@DatabaseSettings.Value.Path</code>
+                        </div>
+                        <div class="mb-3">
+                            <small class="text-muted d-block">Runtime</small>
+                            <code style="font-size: 0.75rem;">@System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription</code>
+                        </div>
+                        <div class="mb-3">
+                            <small class="text-muted d-block">OS</small>
+                            <code style="font-size: 0.75rem;">@Environment.OSVersion</code>
+                        </div>
+                        <hr />
+                        <h6 class="fw-semibold mb-3"><i class="bi bi-github me-2"></i>Source Code</h6>
+                        <a href="https://github.com/neilcaruana/.netcorereverseproxy" target="_blank" class="btn btn-outline-dark btn-sm w-100 mb-2">
+                            <i class="bi bi-github me-1"></i>ReverseProxyServer
+                        </a>
+                        <a href="https://github.com/neilcaruana/Kavalan" target="_blank" class="btn btn-outline-dark btn-sm w-100">
+                            <i class="bi bi-github me-1"></i>Kavalan Libraries
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 }
