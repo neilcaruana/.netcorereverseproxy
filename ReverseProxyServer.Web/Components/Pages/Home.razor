@@ -464,7 +464,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var evt in _liveEvents)
+                        @foreach (var evt in _liveEvents.ToList())
                         {
                             <tr class="@GetLogLevelRowClass(evt.Level)">
                                 <td class="text-nowrap">
@@ -550,9 +550,9 @@
 
             _hubConnection.On<LogEvent>("ReceiveLogEvent", async (logEvent) =>
             {
-                _liveEvents.Add(logEvent);
+                _liveEvents.Insert(0, logEvent);
                 if (_liveEvents.Count > MaxLiveEvents)
-                    _liveEvents.RemoveAt(0);
+                    _liveEvents.RemoveAt(_liveEvents.Count - 1);
 
                 await InvokeAsync(StateHasChanged);
             });

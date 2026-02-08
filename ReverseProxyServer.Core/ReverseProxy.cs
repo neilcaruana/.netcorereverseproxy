@@ -1,19 +1,20 @@
-﻿using System.Collections.Concurrent;
-using System.Net.Sockets;
-using System.Text;
-using System.IO.Pipelines;
-using System.Net;
-using System.Threading;
-using System.IO;
-using Kavalan.Core;
+﻿using Kavalan.Core;
 using Kavalan.Logging;
 using ReverseProxyServer.Core.Enums.ProxyEnums;
 using ReverseProxyServer.Core.Helpers;
 using ReverseProxyServer.Core.Interfaces;
-using static Kavalan.Core.TaskExtensions;
 using System.Buffers;
+using System.Collections.Concurrent;
+using System.ComponentModel.Design;
+using System.IO.Pipelines;
+using System.Net.Sockets;
+using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
+using static Kavalan.Core.TaskExtensions;
 
 namespace ReverseProxyServer.Core;
+
 public class ReverseProxy : IDisposable
 {
     public DateTime StartedOn => startedListeningOn;
@@ -85,6 +86,7 @@ public class ReverseProxy : IDisposable
 
             //Wait for pending connections to finish with a timeout of 30 seconds
             await Task.WhenAll([.. activeConnectionsInternal.Values]).WaitAsync(TimeSpan.FromSeconds(30));
+
             //Clean pending connection tasks manually before exit, this is because clean-up thread has now exited
             CleanCompletedConnectionsInternal();
         }
@@ -96,38 +98,37 @@ public class ReverseProxy : IDisposable
 
     private async Task CreateTcpListener(int port, IProxyEndpointConfig endpoint, CancellationToken cancellationToken)
     {
+        //This is the main thread for every listening port, it will accept incoming connections
+        //and then fire and forget the processing of the traffic to another method to free up the thread
+        //to accept new connections immediately
+
         TcpListener? listener = null;
         try
         {
             listener = new(endpoint.ListeningIpAddress, port);
-            
-            // MEMORY OPTIMIZATION: Minimize socket buffers for Sentinel mode
-            if (settings.SentinelMode)
+
+            //4096 bytes is the default buffer size for TcpClient and TcpListener in .NET, we can set it explicitly here to ensure consistency and avoid any potential issues with different defaults on different platforms
+            listener.Server.ReceiveBufferSize = settings.BufferSize;
+            listener.Server.SendBufferSize = settings.BufferSize;
+
+            //Timeout settings based on config
+            listener.Server.ReceiveTimeout = settings.ReceiveTimeout;
+            listener.Server.SendTimeout = settings.SendTimeout;
+
+            //Disable Nagle algorithm; designed to reduce network traffic by causing the socket to buffer small packets
+            //and then combine and send them in one packet under certain circumstances
+            listener.Server.NoDelay = true;
+
+            // Immediate close for honeypot connections to avoid hanging sockets and free up resources faster, for forwarded connections
+            // this will also help to ensure that connections are closed immediately when the client disconnects
+            if (endpoint.ProxyType == ReverseProxyType.HoneyPot)
             {
-                // Reduce to absolute minimum - honeypots don't need large buffers
-                listener.Server.ReceiveBufferSize = 256;    // Ultra-minimal
-                listener.Server.SendBufferSize = 256;       // Ultra-minimal
-                listener.Server.NoDelay = true;             // Disable Nagle algorithm
-                listener.Server.LingerState = new LingerOption(true, 0);  // Immediate close
-                
-                // Set additional socket options to minimize memory usage
-                try
-                {
-                    listener.Server.ReceiveTimeout = 1000;  // 1 second max
-                    listener.Server.SendTimeout = 1000;     // 1 second max
-                    listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
-                    
-                    if (OperatingSystem.IsWindows())
-                    {
-                        listener.Server.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.NoDelay, 1);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    await OnNotification($"Warning: Could not set advanced socket options on port {port}: {ex.Message}", "", LogLevel.Debug);
-                }
+                listener.Server.LingerState = new LingerOption(true, 0);
+                listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, false);
             }
-            
+            else if (endpoint.ProxyType == ReverseProxyType.Forward)
+                listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+
             listener.Start();
 
             //Check for incoming connections until user needs to stop server
@@ -135,26 +136,35 @@ public class ReverseProxy : IDisposable
             {
                 TcpClient incomingTcpConnection = await listener.AcceptTcpClientAsync(cancellationToken);
 
-                // MEMORY OPTIMIZATION: Configure accepted clients for minimal memory usage
-                if (settings.SentinelMode && endpoint.ProxyType == ReverseProxyType.HoneyPot)
-                {
-                    incomingTcpConnection.ReceiveBufferSize = 512;      // Minimal for honeypot
-                    incomingTcpConnection.SendBufferSize = 512;         // Minimal for honeypot
-                    incomingTcpConnection.NoDelay = true;               // Immediate send
-                    incomingTcpConnection.LingerState = new LingerOption(true, 0);  // Immediate close
-                    incomingTcpConnection.ReceiveTimeout = 2000;        // 2 seconds max
-                    incomingTcpConnection.SendTimeout = 1000;           // 1 second max
-                }
+                //Set TCP conneciton settings based on config, this is needed to ensure that timeouts and buffer sizes are applied to the accepted connection
+                incomingTcpConnection.ReceiveBufferSize = settings.BufferSize;      
+                incomingTcpConnection.SendBufferSize = settings.BufferSize;
+                incomingTcpConnection.ReceiveTimeout = settings.ReceiveTimeout;
+                incomingTcpConnection.SendTimeout = settings.SendTimeout;
+                incomingTcpConnection.NoDelay = true;
 
-                totalConnectionsReceived += 1; //Internal counter of all the connections received
+                // Immediate close for honeypot connections to avoid hanging sockets and free up resources faster, for forwarded connections
+                // this will also help to ensure that connections are closed immediately when the client disconnects
+                if (endpoint.ProxyType == ReverseProxyType.HoneyPot)
+                {
+                    listener.Server.LingerState = new LingerOption(true, 0);
+                    listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, false);
+                }
+                else if (endpoint.ProxyType == ReverseProxyType.Forward)
+                    listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+
+                //Internal counter of all the connections received
+                totalConnectionsReceived += 1; 
                 string sessionId = Guid.NewGuid().ToString()[..8];
+
+                //Create connection info object to pass to event handlers and traffic processing method
                 ConnectionEventArgs connectionInfo = new(DateTime.Now, sessionId, endpoint.ProxyType, CommunicationDirection.Incoming, endpoint.ListeningAddress, port, endpoint.TargetHost, endpoint.TargetPort,
                                                          NetworkHelper.GetEndpointIPAddress(incomingTcpConnection.Client.RemoteEndPoint).ToString(), NetworkHelper.GetEndpointPort(incomingTcpConnection.Client.RemoteEndPoint), string.Empty);
 
                 //Fire and forget processing of actual traffic, this will not block the current thread from processing new connections
                 Task newConnection = ProxyTraffic(incomingTcpConnection, connectionInfo, endpoint, cancellationToken);
 
-                //Handles all new connection event listeners asynchronously
+                //Post connection async processing for logging and statistics 
                 await OnNewConnection(newConnection, connectionInfo);
             }
         }
@@ -196,19 +206,16 @@ public class ReverseProxy : IDisposable
 
             using (incomingTcpClient)
             {
-                incomingTcpClient.ReceiveTimeout = settings.ReceiveTimeout;
-                incomingTcpClient.SendTimeout = settings.SendTimeout;
-
                 string connectionInfo = ProxyHelper.GetConnectionInfo(connection);
 
                 //Checks before continue processing (ex. blacklisted?)
                 BeforeNewConnection?.Invoke(this, connection);
                 await OnNotification($"Connection received from {(!string.IsNullOrEmpty(connection.CountryName) ? $"[{connection.CountryName}] " : "")}{connectionInfo}{(connection.IsBlacklisted ? " is blacklisted" : "")}", connection.SessionId, connection.IsBlacklisted ? LogLevel.Info : LogLevel.Info);
-                
+
                 if (incomingTcpClient.Connected)
                 {
                     incomingDataStream = incomingTcpClient.GetStream();
-                    
+
                     //Honey pot requests, only captured raw data and drop request
                     if (connection.ProxyType == ReverseProxyType.HoneyPot)
                     {
@@ -239,13 +246,13 @@ public class ReverseProxy : IDisposable
                             // Add connection timeout to prevent hanging connections
                             using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
                             using var combinedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
-                            
+
                             await targetTcpClient.ConnectAsync(endPointSettings.TargetHost, endPointSettings.TargetPort, combinedCts.Token);
-                            
+
                             if (targetTcpClient.Connected)
                             {
                                 destinationDataStream = targetTcpClient.GetStream();
-                                
+
                                 //Incoming network connection
                                 Task incomingToDestinationTask = RelayTraffic(incomingDataStream, destinationDataStream, connection, CommunicationDirection.Incoming, cancellationToken);
                                 //Outgoing network connection
@@ -351,11 +358,11 @@ public class ReverseProxy : IDisposable
         {
             // Create pipe for efficient stream handling
             pipe = new Pipe();
-            
+
             // Create timeout for relay operations
             using var timeoutCts = new CancellationTokenSource(TimeSpan.FromMinutes(5)); // 5 minute timeout
             using var combinedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
-            
+
             // Start async tasks for reading and writing
             var readTask = FillPipeAsync(inputNetworkStream, pipe.Writer, combinedCts.Token, settings.ReceiveTimeout);
             var writeTask = DrainPipeAsync(pipe.Reader, outputNetworkStream, connection, direction, combinedCts.Token);
@@ -401,7 +408,7 @@ public class ReverseProxy : IDisposable
             {
                 // Request a minimum amount of memory from the PipeWriter
                 Memory<byte> memory = writer.GetMemory(minimumBufferSize);
-                
+
                 int bytesRead = await inputStream.ReadAsyncWithTimeout(memory, timeoutInSeconds, cancellationToken);
                 if (bytesRead == 0)
                     break;
@@ -455,7 +462,7 @@ public class ReverseProxy : IDisposable
                         // Always clear StringBuilder
                         rawPacket?.Clear();
                     }
-                    
+
                     // Reset for next batch
                     rawDataPacket.SetLength(0);
                 }
@@ -478,7 +485,7 @@ public class ReverseProxy : IDisposable
             {
                 await OnNotification($"Error disposing rawDataPacket in DrainPipeAsync: {ex.Message}", connection.SessionId, LogLevel.Debug);
             }
-            
+
             await reader.CompleteAsync();
         }
     }
@@ -498,7 +505,7 @@ public class ReverseProxy : IDisposable
 
             reader = new StreamReader(memoryStream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, leaveOpen: true);
             rawData.Append(await reader.ReadToEndAsync(cancellationToken));
-            
+
             return rawData;
         }
         finally
@@ -527,7 +534,7 @@ public class ReverseProxy : IDisposable
         int initialCapacity = settings.SentinelMode ? 512 : settings.BufferSize;
         MemoryStream memoryStream = new(initialCapacity);
         byte[]? bufferArray = null;
-        
+
         try
         {
             // Use smaller buffer for honeypot data capture
@@ -540,13 +547,13 @@ public class ReverseProxy : IDisposable
                 int bytesRead;
                 int totalBytesRead = 0;
                 const int maxHoneypotCapture = 8192; // Limit honeypot data capture to 8KB
-                
+
                 // Read packet into memory for parsing before sending to other stream
                 while ((bytesRead = await networkStream.ReadAsyncWithTimeout(buffer, settings.ReceiveTimeout, cancellationToken)) > 0)
                 {
                     await memoryStream.WriteAsync(buffer[..bytesRead], cancellationToken);
                     totalBytesRead += bytesRead;
-                    
+
                     // Limit honeypot data capture in Sentinel mode
                     if (settings.SentinelMode && totalBytesRead >= maxHoneypotCapture)
                     {
@@ -588,34 +595,33 @@ public class ReverseProxy : IDisposable
     {
         MemoryStream? tempMemory = null;
         StringBuilder? rawPacket = null;
-        
+
         try
         {
             //Log data only and close connection
             tempMemory = await ConvertNetworkStreamIntoMemory(incomingDataStream, cancellationToken);
-            
+
             //Drop incoming connection immediately after reading data
             try
             {
-                incomingTcpClient.Close();
+                incomingTcpClient?.Close();
+                incomingTcpClient?.Dispose();
             }
             catch (Exception ex)
             {
                 await OnNotification($"Error closing incoming TCP client: {ex.Message}", connection.SessionId, LogLevel.Debug);
             }
-            
+
+            //If actual data was received proceed with logging, sometimes no data is sent by 3rd party
             if (tempMemory.Length > 0)
             {
-                //If actual data was received proceed with logging
                 rawPacket = await ConvertMemoryStreamToString(tempMemory, cancellationToken);
                 await OnNotification($"Connection dropped from {connectionInfo} logging raw data", connection.SessionId, LogLevel.Info);
                 await OnNotification($"Received data [{tempMemory.Length} bytes]{Environment.NewLine}{rawPacket.ToString().Trim()}", connection.SessionId, LogLevel.Request);
                 await OnNewConnectionData(new ConnectionDataEventArgs(connection.SessionId, "Incoming", rawPacket));
             }
             else
-            {
                 await OnNotification($"Connection dropped. No data received from {connectionInfo}", connection.SessionId, LogLevel.Warning);
-            }
         }
         finally
         {
@@ -628,7 +634,7 @@ public class ReverseProxy : IDisposable
             {
                 await OnNotification($"Error clearing rawPacket: {ex.Message}", connection.SessionId, LogLevel.Debug);
             }
-            
+
             try
             {
                 tempMemory?.Close();

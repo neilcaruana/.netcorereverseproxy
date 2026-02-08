@@ -40,6 +40,8 @@ namespace ReverseProxyServer
 
                 //Load settings and managers 
                 settings = settingsManager.LoadProxySettings();
+                if (settings.SentinelMode)
+                    await logger.LogInfoAsync($"Sentinel Mode: ON");
 
                 //Allow proxy to work without a database and log only in console
                 if (string.IsNullOrWhiteSpace(settings.DatabasePath))
@@ -66,14 +68,6 @@ namespace ReverseProxyServer
                 reverseProxy.Notification += ReverseProxy_Notification;
                 reverseProxy.Error += ReverseProxy_Error;
                 await reverseProxy.StartAsync();
-
-                // Log post-startup analysis
-                var listenerCount = reverseProxy.GetType().GetField("listeners", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(reverseProxy) as IList<Task>;
-                
-                await logger.LogInfoAsync($"Post-startup analysis:");
-                await logger.LogInfoAsync($"  Sentinel Mode: {settings.SentinelMode}");
-                await logger.LogInfoAsync($"  Total listeners created: {listenerCount?.Count ?? 0}");
-                await logger.LogInfoAsync($"  Handle count after startup: {Process.GetCurrentProcess().HandleCount:N0}");
 
                 //Loop and check for user actions
                 do
@@ -219,7 +213,7 @@ namespace ReverseProxyServer
             }
             catch (Exception ex)
             {
-                await logger.LogErrorAsync($"General failure {ex.GetBaseException().Message}", ex);
+                await logger.LogErrorAsync($"General failure {ex.GetBaseException().Message}{Environment.NewLine}{ex.StackTrace}", ex);
             }
         }
 
