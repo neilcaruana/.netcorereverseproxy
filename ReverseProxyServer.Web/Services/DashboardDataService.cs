@@ -48,10 +48,11 @@ public class DashboardDataService : IDashboardDataService
             return await repo.CountAsync(dateFilter);
         }
 
-        public async Task<long> GetBlacklistedIPsCountAsync()
-        {
+    public async Task<long> GetBlacklistedIPsCountAsync(DateTime fromDate, DateTime toDate)
+    {
         using var repo = new GenericSqliteRepository<IPAddressHistory>(_databasePath);
-        return await repo.CountAsync("IsBlacklisted = 1");
+        string dateFilter = $"IsBlacklisted = 1 AND LastConnectionTime >= '{fromDate:yyyy-MM-dd HH:mm:ss}' AND LastConnectionTime <= '{toDate:yyyy-MM-dd HH:mm:ss}'";
+        return await repo.CountAsync(dateFilter);
     }
 
     public async Task<PagedResult<Connection>> GetConnectionsPagedAsync(DateTime fromDate, DateTime toDate, int page, int pageSize, ConnectionFilter? filter = null)
@@ -198,5 +199,48 @@ public class DashboardDataService : IDashboardDataService
             orderByCaluse: "Id ASC");
 
         return connectionData;
+    }
+
+    public async Task<IPDetails> GetIPDetailsAsync(string ipAddress)
+    {
+        var dataLayer = new SqlLiteDataLayer(_databasePath);
+        using var connection = await dataLayer.GetOpenConnection();
+
+        string sql = """
+            SELECT 
+                ip.IPAddress, ip.Hits, ip.LastConnectionTime, ip.IsBlacklisted,
+                abuse.AbuseConfidence, abuse.CountryCode, abuse.CountryName,
+                abuse.ISP, abuse.Domain, abuse.UsageType, 
+                abuse.TotalReports, abuse.DistinctUserCount, abuse.LastReportedAt
+            FROM IPAddressHistory ip
+            LEFT JOIN AbuseIPDB_CheckedIPS abuse ON ip.IPAddress = abuse.IPAddress
+            WHERE ip.IPAddress = @IPAddress
+            """;
+
+        using var cmd = new SqliteCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@IPAddress", ipAddress);
+
+        using var reader = await cmd.ExecuteReaderAsync();
+        if (await reader.ReadAsync())
+        {
+            return new IPDetails
+            {
+                IPAddress = reader.GetString(reader.GetOrdinal("IPAddress")),
+                Hits = reader.GetInt64(reader.GetOrdinal("Hits")),
+                LastConnectionTime = Convert.ToDateTime(reader["LastConnectionTime"]),
+                IsBlacklisted = reader.GetInt64(reader.GetOrdinal("IsBlacklisted")) == 1,
+                AbuseConfidence = reader.IsDBNull(reader.GetOrdinal("AbuseConfidence")) ? null : reader.GetInt64(reader.GetOrdinal("AbuseConfidence")),
+                CountryCode = reader.IsDBNull(reader.GetOrdinal("CountryCode")) ? null : reader.GetString(reader.GetOrdinal("CountryCode")),
+                CountryName = reader.IsDBNull(reader.GetOrdinal("CountryName")) ? null : reader.GetString(reader.GetOrdinal("CountryName")),
+                ISP = reader.IsDBNull(reader.GetOrdinal("ISP")) ? null : reader.GetString(reader.GetOrdinal("ISP")),
+                Domain = reader.IsDBNull(reader.GetOrdinal("Domain")) ? null : reader.GetString(reader.GetOrdinal("Domain")),
+                UsageType = reader.IsDBNull(reader.GetOrdinal("UsageType")) ? null : reader.GetString(reader.GetOrdinal("UsageType")),
+                TotalReports = reader.IsDBNull(reader.GetOrdinal("TotalReports")) ? null : reader.GetInt64(reader.GetOrdinal("TotalReports")),
+                DistinctUserCount = reader.IsDBNull(reader.GetOrdinal("DistinctUserCount")) ? null : reader.GetInt64(reader.GetOrdinal("DistinctUserCount")),
+                LastReportedAt = reader.IsDBNull(reader.GetOrdinal("LastReportedAt")) ? null : Convert.ToDateTime(reader["LastReportedAt"])
+            };
+        }
+
+        return new IPDetails { IPAddress = ipAddress };
     }
 }

@@ -3,6 +3,60 @@ html, body {
     background-color: #f8fafc;
 }
 
+.cursor-pointer {
+    cursor: pointer;
+}
+
+.cursor-pointer:hover {
+    opacity: 0.7;
+}
+
+/* IP Details Popover */
+.ip-details-popover {
+    position: absolute;
+    right: 0;
+    z-index: 1050;
+    min-width: 270px;
+    max-width: 320px;
+    font-size: 0.75rem;
+    animation: fadeIn 0.15s ease-out;
+}
+
+.ip-details-popover.popover-below {
+    top: 100%;
+}
+
+.ip-details-popover.popover-above {
+    bottom: 100%;
+}
+
+.ip-details-popover .card-header {
+    padding: 0.15rem 0.5rem;
+}
+
+.ip-details-popover .card-body {
+    padding: 0.15rem 0.5rem !important;
+}
+
+.ip-details-popover td {
+    padding: 0 0.15rem;
+    line-height: 1.2;
+}
+
+.ip-details-popover td:first-child {
+    white-space: nowrap;
+    padding-right: 0.4rem;
+}
+
+.ip-details-popover hr {
+    margin: 0.1rem 0;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
 .page {
     min-height: 100vh;
     display: flex;

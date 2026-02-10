@@ -197,6 +197,37 @@
                         <span>@_pagedConnections.TotalCount.ToString("N0") total records</span>
                     }
                 </span>
+                @if (_pagedConnections?.TotalPages > 1)
+                {
+                    <ul class="pagination pagination-sm mb-0">
+                        <li class="page-item @(!_pagedConnections.HasPreviousPage ? "disabled" : "")">
+                            <button class="page-link" @onclick="() => GoToPage(1)" disabled="@(!_pagedConnections.HasPreviousPage)">
+                                <i class="bi bi-chevron-double-left"></i>
+                            </button>
+                        </li>
+                        <li class="page-item @(!_pagedConnections.HasPreviousPage ? "disabled" : "")">
+                            <button class="page-link" @onclick="() => GoToPage(_currentPage - 1)" disabled="@(!_pagedConnections.HasPreviousPage)">
+                                <i class="bi bi-chevron-left"></i>
+                            </button>
+                        </li>
+                        @foreach (var pageNum in GetPageNumbers())
+                        {
+                            <li class="page-item @(pageNum == _currentPage ? "active" : "")">
+                                <button class="page-link" @onclick="() => GoToPage(pageNum)">@pageNum</button>
+                            </li>
+                        }
+                        <li class="page-item @(!_pagedConnections.HasNextPage ? "disabled" : "")">
+                            <button class="page-link" @onclick="() => GoToPage(_currentPage + 1)" disabled="@(!_pagedConnections.HasNextPage)">
+                                <i class="bi bi-chevron-right"></i>
+                            </button>
+                        </li>
+                        <li class="page-item @(!_pagedConnections.HasNextPage ? "disabled" : "")">
+                            <button class="page-link" @onclick="() => GoToPage(_pagedConnections.TotalPages)" disabled="@(!_pagedConnections.HasNextPage)">
+                                <i class="bi bi-chevron-double-right"></i>
+                            </button>
+                        </li>
+                    </ul>
+                }
                 @if (_pagedConnections?.SessionsWithData.Count > 0)
                 {
                     <div class="btn-group btn-group-sm">
@@ -290,10 +321,13 @@
                         </tr>
                     </thead>
                     <tbody>
+                        @{ var rowIndex = 0; }
                         @foreach (var conn in _pagedConnections.Items)
                         {
                             var isExpanded = _expandedSessions.ContainsKey(conn.SessionId);
                             var hasData = _pagedConnections.SessionsWithData.Contains(conn.SessionId);
+                            var popoverDirection = rowIndex >= _pagedConnections.Items.Count - 3 ? "popover-above" : "popover-below";
+                            rowIndex++;
                             <tr class="@(isExpanded ? "table-active" : "")" @onclick="() => ToggleRowExpand(conn.SessionId)" style="cursor: pointer;">
                                 <td class="text-center">
                                     @if (_loadingSessionId == conn.SessionId)
@@ -325,20 +359,127 @@
                                     }
                                 </td>
                                 <td>
+                                    <div class="position-relative">
                                     <div class="d-flex justify-content-between align-items-center">
                                         <code class="text-primary">@conn.RemoteAddress</code>
-                                        <span class="d-flex align-items-center text-nowrap ms-2">
+                                        <span class="d-flex align-items-center text-nowrap ms-2 gap-1">
                                             @if (_pagedConnections.BlacklistedIPs.Contains(conn.RemoteAddress))
                                             {
-                                                <i class="bi bi-shield-x text-danger" title="Blacklisted"></i>
+                                                <span role="button" class="badge bg-danger-subtle text-danger border border-danger-subtle cursor-pointer" 
+                                                      title="Blacklisted" @onclick="() => ShowIPDetailsAsync(conn.RemoteAddress, conn.Id)" @onclick:stopPropagation="true">🏴‍☠️ Blocked</span>
                                             }
                                             @if (_pagedConnections.CountryCodeMap.TryGetValue(conn.RemoteAddress, out var countryCode))
                                             {
-                                                <img src="https://flagcdn.com/w20/@(countryCode.ToLowerInvariant()).png" 
-                                                     width="16" height="12" alt="@countryCode" title="@countryCode"
-                                                     class="ms-1" loading="lazy" />
+                                                <span role="button" class="badge bg-light text-muted border cursor-pointer" title="@countryCode"
+                                                      @onclick="() => ShowIPDetailsAsync(conn.RemoteAddress, conn.Id)" @onclick:stopPropagation="true">
+                                                    <img src="https://flagcdn.com/w20/@(countryCode.ToLowerInvariant()).png" 
+                                                         width="14" height="10" alt="@countryCode" loading="lazy" />
+                                                    @countryCode
+                                                </span>
                                             }
                                         </span>
+                                    </div>
+                                    @if (_selectedIP == conn.RemoteAddress && _selectedRowId == conn.Id)
+                                    {
+                                        <div class="ip-details-popover @popoverDirection card shadow border" @onclick:stopPropagation="true">
+                                            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                                                <span class="fw-semibold small">
+                                                    <i class="bi bi-info-circle me-1"></i>@conn.RemoteAddress
+                                                    <a href="https://www.abuseipdb.com/check/@conn.RemoteAddress" target="_blank" rel="noopener noreferrer" class="ms-1 text-decoration-none" title="View on AbuseIPDB">
+                                                        <i class="bi bi-box-arrow-up-right"></i>
+                                                    </a>
+                                                </span>
+                                                <button class="btn btn-sm btn-close" @onclick="CloseIPDetails" @onclick:stopPropagation="true"></button>
+                                            </div>
+                                            <div class="card-body">
+                                                @if (_isLoadingIPDetails)
+                                                {
+                                                    <div class="text-center py-1">
+                                                        <span class="spinner-border spinner-border-sm text-primary"></span>
+                                                    </div>
+                                                }
+                                                else if (_selectedIPDetails != null)
+                                                {
+                                                    <table class="table table-sm table-borderless mb-0" style="font-size: 0.75rem;">
+                                                        <tbody>
+                                                            <tr>
+                                                                <td class="text-muted fw-semibold">Hits</td>
+                                                                <td class="fw-bold">@_selectedIPDetails.Hits.ToString("N0")</td>
+                                                            </tr>
+                                                            <tr>
+                                                                <td class="text-muted fw-semibold">Last Seen</td>
+                                                                <td>@(_selectedIPDetails.LastConnectionTime?.ToString("MMM dd, yyyy HH:mm") ?? "—")</td>
+                                                            </tr>
+                                                            <tr>
+                                                                <td class="text-muted fw-semibold">Blacklisted</td>
+                                                                <td>
+                                                                    @if (_selectedIPDetails.IsBlacklisted)
+                                                                    {
+                                                                        <span class="badge bg-danger">Yes</span>
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        <span class="badge bg-success">No</span>
+                                                                    }
+                                                                </td>
+                                                            </tr>
+                                                            @if (_selectedIPDetails.HasAbuseData)
+                                                            {
+                                                                <tr><td colspan="2"><hr class="my-1" /></td></tr>
+                                                                <tr>
+                                                                    <td class="text-muted fw-semibold">Abuse Score</td>
+                                                                    <td><span class="badge @GetAbuseConfidenceBadgeClass(_selectedIPDetails.AbuseConfidence!.Value)">@(_selectedIPDetails.AbuseConfidence)%</span></td>
+                                                                </tr>
+                                                                @if (!string.IsNullOrEmpty(_selectedIPDetails.CountryName))
+                                                                {
+                                                                    <tr>
+                                                                        <td class="text-muted fw-semibold">Country</td>
+                                                                        <td>@_selectedIPDetails.CountryName</td>
+                                                                    </tr>
+                                                                }
+                                                                @if (!string.IsNullOrEmpty(_selectedIPDetails.ISP))
+                                                                {
+                                                                    <tr>
+                                                                        <td class="text-muted fw-semibold">ISP</td>
+                                                                        <td>@_selectedIPDetails.ISP</td>
+                                                                    </tr>
+                                                                }
+                                                                @if (!string.IsNullOrEmpty(_selectedIPDetails.Domain))
+                                                                {
+                                                                    <tr>
+                                                                        <td class="text-muted fw-semibold">Domain</td>
+                                                                        <td><a href="https://@_selectedIPDetails.Domain" target="_blank" rel="noopener noreferrer">@_selectedIPDetails.Domain</a></td>
+                                                                    </tr>
+                                                                }
+                                                                @if (!string.IsNullOrEmpty(_selectedIPDetails.UsageType))
+                                                                {
+                                                                    <tr>
+                                                                        <td class="text-muted fw-semibold">Usage</td>
+                                                                        <td>@_selectedIPDetails.UsageType</td>
+                                                                    </tr>
+                                                                }
+                                                                <tr>
+                                                                    <td class="text-muted fw-semibold">Reports</td>
+                                                                    <td>@(_selectedIPDetails.TotalReports?.ToString("N0") ?? "0") from @(_selectedIPDetails.DistinctUserCount?.ToString("N0") ?? "0") users</td>
+                                                                </tr>
+                                                                @if (_selectedIPDetails.LastReportedAt != null)
+                                                                {
+                                                                    <tr>
+                                                                        <td class="text-muted fw-semibold">Last Report</td>
+                                                                        <td>@_selectedIPDetails.LastReportedAt.Value.ToString("MMM dd, yyyy")</td>
+                                                                    </tr>
+                                                                }
+                                                            }
+                                                            else
+                                                            {
+                                                                <tr><td colspan="2" class="text-muted fst-italic">No AbuseIPDB data</td></tr>
+                                                            }
+                                                        </tbody>
+                                                    </table>
+                                                }
+                                            </div>
+                                        </div>
+                                    }
                                     </div>
                                 </td>
                                 <td><code>@conn.RemotePort</code></td>
@@ -385,46 +526,6 @@
                     </tbody>
                 </table>
             </div>
-
-            <!-- Pagination -->
-            @if (_pagedConnections.TotalPages > 1)
-            {
-                <div class="card-footer bg-white">
-                    <nav class="d-flex justify-content-between align-items-center">
-                        <span class="text-muted small">
-                            Page @_pagedConnections.Page of @_pagedConnections.TotalPages
-                        </span>
-                        <ul class="pagination pagination-sm mb-0">
-                            <li class="page-item @(!_pagedConnections.HasPreviousPage ? "disabled" : "")">
-                                <button class="page-link" @onclick="() => GoToPage(1)" disabled="@(!_pagedConnections.HasPreviousPage)">
-                                    <i class="bi bi-chevron-double-left"></i>
-                                </button>
-                            </li>
-                            <li class="page-item @(!_pagedConnections.HasPreviousPage ? "disabled" : "")">
-                                <button class="page-link" @onclick="() => GoToPage(_currentPage - 1)" disabled="@(!_pagedConnections.HasPreviousPage)">
-                                    <i class="bi bi-chevron-left"></i>
-                                </button>
-                            </li>
-                            @foreach (var pageNum in GetPageNumbers())
-                            {
-                                <li class="page-item @(pageNum == _currentPage ? "active" : "")">
-                                    <button class="page-link" @onclick="() => GoToPage(pageNum)">@pageNum</button>
-                                </li>
-                            }
-                            <li class="page-item @(!_pagedConnections.HasNextPage ? "disabled" : "")">
-                                <button class="page-link" @onclick="() => GoToPage(_currentPage + 1)" disabled="@(!_pagedConnections.HasNextPage)">
-                                    <i class="bi bi-chevron-right"></i>
-                                </button>
-                            </li>
-                            <li class="page-item @(!_pagedConnections.HasNextPage ? "disabled" : "")">
-                                <button class="page-link" @onclick="() => GoToPage(_pagedConnections.TotalPages)" disabled="@(!_pagedConnections.HasNextPage)">
-                                    <i class="bi bi-chevron-double-right"></i>
-                                </button>
-                            </li>
-                        </ul>
-                    </nav>
-                </div>
-            }
         }
         else
         {
@@ -458,10 +559,9 @@
                 <button class="btn btn-outline-secondary btn-sm" @onclick="ClearLiveEvents" title="Clear events">
                     <i class="bi bi-trash"></i>
                 </button>
-                <div class="form-check form-switch mb-0">
-                    <input class="form-check-input" type="checkbox" id="autoScroll" @bind="_autoScroll" />
-                    <label class="form-check-label small" for="autoScroll">Auto-scroll</label>
-                </div>
+                <button class="btn btn-outline-secondary btn-sm @( !_autoScroll ? "active" : "" )" @onclick="TogglePauseAutoScroll" title="Pause auto-scroll">
+                    <i class="bi bi-pause"></i> @( !_autoScroll ? "Paused" : "Pause" )
+                </button>
             </div>
         </div>
     </div>
@@ -608,6 +708,12 @@
     private Dictionary<string, List<ConnectionData>?> _expandedSessions = new();
     private string? _loadingSessionId;
 
+    // IP details popover
+    private IPDetails? _selectedIPDetails;
+    private string? _selectedIP;
+    private long? _selectedRowId;
+    private bool _isLoadingIPDetails;
+
     // Loading state
     private bool _isLoading = true;
     private bool _isLoadingConnections = true;
@@ -710,7 +816,7 @@
             }),
             LoadWithTimingAsync("BlacklistedIPs", async () =>
             {
-                _blacklistedIPs = await DashboardService.GetBlacklistedIPsCountAsync();
+                _blacklistedIPs = await DashboardService.GetBlacklistedIPsCountAsync(_fromDate.Date, toDateEnd);
                 await InvokeAsync(StateHasChanged);
             }),
             LoadWithTimingAsync("Connections", async () =>
@@ -876,6 +982,52 @@
         _expandedSessions.Clear();
     }
 
+    private async Task ShowIPDetailsAsync(string ipAddress, long rowId)
+    {
+        if (_selectedIP == ipAddress && _selectedRowId == rowId)
+        {
+            _selectedIP = null;
+            _selectedRowId = null;
+            _selectedIPDetails = null;
+            return;
+        }
+
+        _selectedIP = ipAddress;
+        _selectedRowId = rowId;
+        _selectedIPDetails = null;
+        _isLoadingIPDetails = true;
+        StateHasChanged();
+
+        try
+        {
+            _selectedIPDetails = await DashboardService.GetIPDetailsAsync(ipAddress);
+        }
+        catch
+        {
+            _selectedIPDetails = new IPDetails { IPAddress = ipAddress };
+        }
+        finally
+        {
+            _isLoadingIPDetails = false;
+            StateHasChanged();
+        }
+    }
+
+    private void CloseIPDetails()
+    {
+        _selectedIP = null;
+        _selectedRowId = null;
+        _selectedIPDetails = null;
+    }
+
+    private static string GetAbuseConfidenceBadgeClass(long confidence) => confidence switch
+    {
+        >= 75 => "bg-danger",
+        >= 50 => "bg-warning text-dark",
+        >= 25 => "bg-info text-dark",
+        _ => "bg-success"
+    };
+
     private IEnumerable<int> GetPageNumbers()
     {
         if (_pagedConnections == null) yield break;
@@ -934,5 +1086,9 @@
         {
             await _hubConnection.DisposeAsync();
         }
+    }
+    private void TogglePauseAutoScroll()
+    {
+        _autoScroll = !_autoScroll;
     }
 }

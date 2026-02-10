@@ -8,13 +8,16 @@ public interface IDashboardDataService
     Task<ConnectionStats> GetConnectionStatsAsync(DateTime fromDate, DateTime toDate);
     Task<long> GetUniqueIPsCountAsync(DateTime fromDate, DateTime toDate);
     Task<long> GetUniquePortsCountAsync(DateTime fromDate, DateTime toDate);
-    Task<long> GetBlacklistedIPsCountAsync();
+    Task<long> GetBlacklistedIPsCountAsync(DateTime fromDate, DateTime toDate);
 
     // Paged connections with column filters
     Task<PagedResult<Connection>> GetConnectionsPagedAsync(DateTime fromDate, DateTime toDate, int page, int pageSize, ConnectionFilter? filter = null);
 
     // Connection details
     Task<List<ConnectionData>> GetConnectionDataAsync(string sessionId);
+
+    // IP details (on-demand)
+    Task<IPDetails> GetIPDetailsAsync(string ipAddress);
 }
 
 public class ConnectionStats
@@ -51,4 +54,26 @@ public class PagedResult<T>
     public int TotalPages => (int)Math.Ceiling(TotalCount / (double)PageSize);
     public bool HasPreviousPage => Page > 1;
     public bool HasNextPage => Page < TotalPages;
+}
+
+public class IPDetails
+{
+    public string IPAddress { get; init; } = string.Empty;
+
+    // From IPAddressHistory
+    public long Hits { get; init; }
+    public DateTime? LastConnectionTime { get; init; }
+    public bool IsBlacklisted { get; init; }
+
+    // From AbuseIPDB_CheckedIPS
+    public long? AbuseConfidence { get; init; }
+    public string? CountryCode { get; init; }
+    public string? CountryName { get; init; }
+    public string? ISP { get; init; }
+    public string? Domain { get; init; }
+    public string? UsageType { get; init; }
+    public long? TotalReports { get; init; }
+    public long? DistinctUserCount { get; init; }
+    public DateTime? LastReportedAt { get; init; }
+    public bool HasAbuseData => AbuseConfidence != null;
 }
