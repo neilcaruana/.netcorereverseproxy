@@ -82,9 +82,11 @@ public class DashboardDataService : IDashboardDataService
                    c.LocalAddress, c.LocalPort, c.TargetHost, c.TargetPort, 
                    c.RemoteAddress, c.RemotePort,
                    EXISTS(SELECT 1 FROM ConnectionsData cd WHERE cd.SessionId = c.SessionId) AS HasData,
-                   COALESCE(ip.IsBlacklisted, 0) AS IsBlacklisted
+                   COALESCE(ip.IsBlacklisted, 0) AS IsBlacklisted,
+                   abuse.CountryCode
             FROM Connections c
             LEFT JOIN IPAddressHistory ip ON c.RemoteAddress = ip.IPAddress
+            LEFT JOIN AbuseIPDB_CheckedIPS abuse ON c.RemoteAddress = abuse.IPAddress
             INNER JOIN (
                 SELECT c.Id FROM Connections c
                 WHERE {whereClause}
@@ -139,8 +141,11 @@ public class DashboardDataService : IDashboardDataService
         var connections = new List<Connection>();
         var sessionsWithData = new HashSet<string>();
         var blacklistedIPs = new HashSet<string>();
+        var countryCodeMap = new Dictionary<string, string>();
 
         using var reader = await dataCmd.ExecuteReaderAsync();
+        var countryCodeOrdinal = reader.GetOrdinal("CountryCode");
+
         while (await reader.ReadAsync())
         {
             var conn = new Connection
@@ -165,6 +170,9 @@ public class DashboardDataService : IDashboardDataService
 
             if (reader.GetInt64(reader.GetOrdinal("IsBlacklisted")) == 1)
                 blacklistedIPs.Add(conn.RemoteAddress);
+
+            if (!reader.IsDBNull(countryCodeOrdinal))
+                countryCodeMap.TryAdd(conn.RemoteAddress, reader.GetString(countryCodeOrdinal));
         }
 
         return new PagedResult<Connection>
@@ -174,7 +182,8 @@ public class DashboardDataService : IDashboardDataService
             Page = page,
             PageSize = pageSize,
             SessionsWithData = sessionsWithData,
-            BlacklistedIPs = blacklistedIPs
+            BlacklistedIPs = blacklistedIPs,
+            CountryCodeMap = countryCodeMap
         };
     }
 

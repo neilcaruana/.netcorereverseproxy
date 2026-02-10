@@ -47,6 +47,7 @@ public class PagedResult<T>
     public int PageSize { get; set; }
     public HashSet<string> SessionsWithData { get; set; } = [];
     public HashSet<string> BlacklistedIPs { get; set; } = [];
+    public Dictionary<string, string> CountryCodeMap { get; set; } = new();
     public int TotalPages => (int)Math.Ceiling(TotalCount / (double)PageSize);
     public bool HasPreviousPage => Page > 1;
     public bool HasNextPage => Page < TotalPages;
