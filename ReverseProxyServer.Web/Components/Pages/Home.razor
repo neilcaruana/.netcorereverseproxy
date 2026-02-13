@@ -562,16 +562,30 @@
                 <button class="btn btn-outline-secondary btn-sm @( !_autoScroll ? "active" : "" )" @onclick="TogglePauseAutoScroll" title="Pause auto-scroll">
                     <i class="bi bi-pause"></i> @( !_autoScroll ? "Paused" : "Pause" )
                 </button>
+                <button class="btn btn-outline-secondary btn-sm @(_terminalView ? "active" : "")" @onclick="() => _terminalView = !_terminalView" title="Toggle terminal view">
+                    <i class="bi bi-terminal"></i> Terminal
+                </button>
             </div>
         </div>
     </div>
-    <div class="card-body p-0">
+    <div class="card-body p-0" style="@(_terminalView ? "background:#1e1e1e;" : "")">
         @if (_liveEvents.Count == 0)
         {
             <div class="text-center py-5 text-muted">
                 <i class="bi bi-broadcast display-4"></i>
                 <p class="mt-3 mb-0">Waiting for events from the reverse proxy server...</p>
                 <p class="small">Ensure the proxy is running with <code>DashboardUrl</code> configured.</p>
+            </div>
+        }
+        else if (_terminalView)
+        {
+            <div style="max-height:600px; overflow-y:auto; background:#1e1e1e; padding:0.5rem 0.75rem; font-family:'Cascadia Code','Fira Code','Consolas','Courier New',monospace; font-size:0.75rem; line-height:1.6;">
+                @foreach (var evt in _liveEvents.ToList())
+                {
+                    <div style="padding:1px 4px; border-radius:2px; color:@GetTerminalLevelColor(evt.Level);">
+                        <span style="color:#608b4e; margin-right:1.5em;">@evt.Timestamp.ToString("yyyy-MM-dd HH:mm:ss.fff")</span><span style="font-weight:bold; display:inline-block; min-width:56px; margin-right:1.5em;">@evt.Level.ToString().ToUpperInvariant()</span><span style="color:#9cdcfe; margin-right:1.5em;">@(evt.CorrelationId ?? "—")</span><span>@evt.Message</span>@if (!string.IsNullOrEmpty(evt.ExceptionMessage)){<span style="color:#f48771; margin-left:1.5em;">@evt.ExceptionMessage</span>}
+                    </div>
+                }
             </div>
         }
         else
@@ -690,6 +704,7 @@
     private bool _hubConnected;
     private readonly List<LogEvent> _liveEvents = new();
     private bool _autoScroll = true;
+    private bool _terminalView;
     private const int MaxLiveEvents = 500;
 
     // Stats data
@@ -751,7 +766,8 @@
                 if (_liveEvents.Count > MaxLiveEvents)
                     _liveEvents.RemoveAt(_liveEvents.Count - 1);
 
-                await InvokeAsync(StateHasChanged);
+                if (_autoScroll)
+                    await InvokeAsync(StateHasChanged);
             });
 
             _hubConnection.Reconnected += _ =>
@@ -1080,6 +1096,16 @@
         _ => ""
     };
 
+    private static string GetTerminalLevelColor(Kavalan.Logging.LogLevel level) => level switch
+    {
+        Kavalan.Logging.LogLevel.Error => "#f48771",
+        Kavalan.Logging.LogLevel.Warning => "#cca700",
+        Kavalan.Logging.LogLevel.Info => "#d4d4d4",
+        Kavalan.Logging.LogLevel.Request => "#4ec9b0",
+        Kavalan.Logging.LogLevel.Debug => "#808080",
+        _ => "#d4d4d4"
+    };
+
     public async ValueTask DisposeAsync()
     {
         if (_hubConnection is not null)
@@ -1090,5 +1116,7 @@
     private void TogglePauseAutoScroll()
     {
         _autoScroll = !_autoScroll;
+        if (_autoScroll)
+            StateHasChanged();
     }
 }
