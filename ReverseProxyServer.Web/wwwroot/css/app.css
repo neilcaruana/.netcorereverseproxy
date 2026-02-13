@@ -11,6 +11,13 @@ html, body {
     opacity: 0.7;
 }
 
+/* Date range picker */
+.date-range-picker input[type="datetime-local"] {
+    font-size: 0.75rem;
+    max-width: 175px;
+    padding: 0.2rem 0.4rem;
+}
+
 /* IP Details Popover */
 .ip-details-popover {
     position: absolute;

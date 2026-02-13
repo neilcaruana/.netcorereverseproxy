@@ -26,9 +26,10 @@
         <div class="date-range-picker">
             <div class="input-group input-group-sm">
                 <span class="input-group-text bg-white"><i class="bi bi-calendar3"></i></span>
-                <input type="date" class="form-control" @bind="_fromDate" />
-                <span class="input-group-text bg-white">to</span>
-                <input type="date" class="form-control" @bind="_toDate" />
+                <span class="input-group-text bg-white text-muted" style="font-size:0.7rem;">From</span>
+                <input type="datetime-local" class="form-control" @bind="_fromDate" @bind:format="yyyy-MM-ddTHH:mm:ss" step="1" />
+                <span class="input-group-text bg-white text-muted" style="font-size:0.7rem;">To</span>
+                <input type="datetime-local" class="form-control" @bind="_toDate" @bind:format="yyyy-MM-ddTHH:mm:ss" step="1" />
                 <button class="btn btn-primary" @onclick="LoadAllDataAsync" disabled="@_isLoading">
                     @if (_isLoading)
                     {
@@ -48,7 +49,8 @@
                     <li><a class="dropdown-item" href="#" @onclick="() => SetQuickRange(30)" @onclick:preventDefault>Last 30 days</a></li>
                     <li><a class="dropdown-item" href="#" @onclick="() => SetQuickRange(90)" @onclick:preventDefault>Last 90 days</a></li>
                     <li><hr class="dropdown-divider"></li>
-                    <li><a class="dropdown-item" href="#" @onclick="() => SetQuickRange(365)" @onclick:preventDefault>Last year</a></li>
+                    <li><a class="dropdown-item" href="#" @onclick="SetThisYear" @onclick:preventDefault>This year</a></li>
+                    <li><a class="dropdown-item" href="#" @onclick="SetLastYear" @onclick:preventDefault>Last year</a></li>
                 </ul>
             </div>
         </div>
@@ -736,8 +738,8 @@
     private bool _hasInitialized = false;
 
     // Date range
-    private DateTime _fromDate = DateTime.Today.AddDays(-30);
-    private DateTime _toDate = DateTime.Today;
+    private DateTime _fromDate = DateTime.Today;
+    private DateTime _toDate = DateTime.Today.AddDays(1).AddSeconds(-1);
 
     private string? _error;
 
@@ -810,34 +812,32 @@
 
         await InvokeAsync(StateHasChanged);
 
-        var toDateEnd = _toDate.Date.AddDays(1).AddSeconds(-1);
-
         // Load all stats in parallel
         var tasks = new List<Task>
         {
             LoadWithTimingAsync("ConnectionStats", async () =>
             {
-                _connectionStats = await DashboardService.GetConnectionStatsAsync(_fromDate.Date, toDateEnd);
+                _connectionStats = await DashboardService.GetConnectionStatsAsync(_fromDate, _toDate);
                 await InvokeAsync(StateHasChanged);
             }),
             LoadWithTimingAsync("UniqueIPs", async () =>
             {
-                _uniqueIPs = await DashboardService.GetUniqueIPsCountAsync(_fromDate.Date, toDateEnd);
+                _uniqueIPs = await DashboardService.GetUniqueIPsCountAsync(_fromDate, _toDate);
                 await InvokeAsync(StateHasChanged);
             }),
             LoadWithTimingAsync("UniquePorts", async () =>
             {
-                _uniquePorts = await DashboardService.GetUniquePortsCountAsync(_fromDate.Date, toDateEnd);
+                _uniquePorts = await DashboardService.GetUniquePortsCountAsync(_fromDate, _toDate);
                 await InvokeAsync(StateHasChanged);
             }),
             LoadWithTimingAsync("BlacklistedIPs", async () =>
             {
-                _blacklistedIPs = await DashboardService.GetBlacklistedIPsCountAsync(_fromDate.Date, toDateEnd);
+                _blacklistedIPs = await DashboardService.GetBlacklistedIPsCountAsync(_fromDate, _toDate);
                 await InvokeAsync(StateHasChanged);
             }),
             LoadWithTimingAsync("Connections", async () =>
             {
-                _pagedConnections = await DashboardService.GetConnectionsPagedAsync(_fromDate.Date, toDateEnd, _currentPage, PageSize, _filter);
+                _pagedConnections = await DashboardService.GetConnectionsPagedAsync(_fromDate, _toDate, _currentPage, PageSize, _filter);
                 _isLoadingConnections = false;
                 await InvokeAsync(StateHasChanged);
             })
@@ -877,8 +877,7 @@
 
         try
         {
-            var toDateEnd = _toDate.Date.AddDays(1).AddSeconds(-1);
-            _pagedConnections = await DashboardService.GetConnectionsPagedAsync(_fromDate.Date, toDateEnd, _currentPage, PageSize, _filter);
+            _pagedConnections = await DashboardService.GetConnectionsPagedAsync(_fromDate, _toDate, _currentPage, PageSize, _filter);
             await LogToConsoleAsync($"📋 Connections page {_currentPage} loaded in {sw.ElapsedMilliseconds}ms ({_pagedConnections.Items.Count} of {_pagedConnections.TotalCount} records)");
         }
         catch (Exception ex)
@@ -906,7 +905,21 @@
     private async Task SetQuickRange(int days)
     {
         _fromDate = DateTime.Today.AddDays(-days + 1);
-        _toDate = DateTime.Today;
+        _toDate = DateTime.Today.AddDays(1).AddSeconds(-1);
+        await LoadAllDataAsync();
+    }
+
+    private async Task SetThisYear()
+    {
+        _fromDate = new DateTime(DateTime.Today.Year, 1, 1);
+        _toDate = DateTime.Today.AddDays(1).AddSeconds(-1);
+        await LoadAllDataAsync();
+    }
+
+    private async Task SetLastYear()
+    {
+        _fromDate = new DateTime(DateTime.Today.Year - 1, 1, 1);
+        _toDate = new DateTime(DateTime.Today.Year - 1, 12, 31, 23, 59, 59);
         await LoadAllDataAsync();
     }
 
