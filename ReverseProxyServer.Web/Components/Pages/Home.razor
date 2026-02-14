@@ -338,7 +338,9 @@
                                     }
                                     else if (hasData)
                                     {
-                                        <i class="bi @(isExpanded ? "bi-chevron-down" : "bi-chevron-right") text-primary"></i>
+                                        <span class="badge @(isExpanded ? "bg-primary" : "bg-primary-subtle text-primary border border-primary-subtle")" style="font-size:0.6rem;">
+                                            <i class="bi @(isExpanded ? "bi-caret-down-fill" : "bi-caret-right-fill")"></i>
+                                        </span>
                                     }
                                     else
                                     {
