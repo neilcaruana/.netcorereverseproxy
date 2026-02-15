@@ -44,12 +44,16 @@ public class ConnectionFilter
     public string? RemotePort { get; set; }
     public string? LocalAddress { get; set; }
     public string? LocalPort { get; set; }
+    public string? IsBlacklisted { get; set; }
+    public string? CountryCode { get; set; }
 
     public bool HasAnyFilter => !string.IsNullOrWhiteSpace(ProxyType) ||
                                 !string.IsNullOrWhiteSpace(RemoteAddress) ||
                                 !string.IsNullOrWhiteSpace(RemotePort) ||
                                 !string.IsNullOrWhiteSpace(LocalAddress) ||
-                                !string.IsNullOrWhiteSpace(LocalPort);
+                                !string.IsNullOrWhiteSpace(LocalPort) ||
+                                !string.IsNullOrWhiteSpace(IsBlacklisted) ||
+                                !string.IsNullOrWhiteSpace(CountryCode);
 }
 
 public class PagedResult<T>

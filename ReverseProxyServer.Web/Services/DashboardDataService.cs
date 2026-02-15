@@ -60,23 +60,27 @@ public class DashboardDataService : IDashboardDataService
         var dataLayer = new SqlLiteDataLayer(_databasePath);
         using var connection = await dataLayer.GetOpenConnection();
 
-        string whereClause = GetDateFilter(fromDate, toDate);
+        var whereClause = GetDateFilter(fromDate, toDate);
+        var parameters = new Dictionary<string, object>();
+        var filterJoin = string.Empty;
+        int offset = (page - 1) * pageSize;
 
         if (filter != null)
         {
-            if (!string.IsNullOrWhiteSpace(filter.ProxyType))
-                whereClause += $" AND c.ProxyType = @ProxyType";
-            if (!string.IsNullOrWhiteSpace(filter.RemoteAddress))
-                whereClause += $" AND c.RemoteAddress LIKE @RemoteAddress";
-            if (!string.IsNullOrWhiteSpace(filter.RemotePort))
-                whereClause += $" AND c.RemotePort = @RemotePort";
-            if (!string.IsNullOrWhiteSpace(filter.LocalAddress))
-                whereClause += $" AND c.LocalAddress LIKE @LocalAddress";
-            if (!string.IsNullOrWhiteSpace(filter.LocalPort))
-                whereClause += $" AND c.LocalPort = @LocalPort";
-        }
+            AddFilter(filter.ProxyType, "c.ProxyType = @ProxyType", "@ProxyType", v => v);
+            AddFilter(filter.RemoteAddress, "c.RemoteAddress LIKE @RemoteAddress", "@RemoteAddress", v => $"%{v}%");
+            AddFilter(filter.RemotePort, "c.RemotePort = @RemotePort", "@RemotePort", v => v);
+            AddFilter(filter.LocalAddress, "c.LocalAddress LIKE @LocalAddress", "@LocalAddress", v => $"%{v}%");
+            AddFilter(filter.LocalPort, "c.LocalPort = @LocalPort", "@LocalPort", v => v);
+            AddFilter(filter.CountryCode, "c.RemoteAddress IN (SELECT IPAddress FROM AbuseIPDB_CheckedIPS WHERE CountryCode LIKE @CountryCode)", "@CountryCode", v => $"%{v}%");
 
-        int offset = (page - 1) * pageSize;
+            if (!string.IsNullOrWhiteSpace(filter.IsBlacklisted))
+            {
+                filterJoin = filter.IsBlacklisted == "Yes"
+                    ? " INNER JOIN IPAddressHistory bl ON c.RemoteAddress = bl.IPAddress AND bl.IsBlacklisted = 1"
+                    : " INNER JOIN IPAddressHistory bl ON c.RemoteAddress = bl.IPAddress AND bl.IsBlacklisted = 0";
+            }
+        }
 
         string sql = $"""
             SELECT c.Id, c.SessionId, c.InstanceId, c.ConnectionTime, c.ProxyType, 
@@ -90,6 +94,7 @@ public class DashboardDataService : IDashboardDataService
             LEFT JOIN AbuseIPDB_CheckedIPS abuse ON c.RemoteAddress = abuse.IPAddress
             INNER JOIN (
                 SELECT c.Id FROM Connections c
+                {filterJoin}
                 WHERE {whereClause}
                 ORDER BY c.ConnectionTime DESC
                 LIMIT @PageSize OFFSET @Offset
@@ -97,44 +102,16 @@ public class DashboardDataService : IDashboardDataService
             ORDER BY c.ConnectionTime DESC
             """;
 
-        string countSql = $"SELECT COUNT(*) FROM Connections c WHERE {whereClause}";
-
-        using var countCmd = new SqliteCommand(countSql, connection);
+        using var countCmd = new SqliteCommand($"SELECT COUNT(*) FROM Connections c {filterJoin} WHERE {whereClause}", connection);
         using var dataCmd = new SqliteCommand(sql, connection);
 
-        // Add shared parameters to both commands
-        countCmd.Parameters.AddWithValue("@PageSize", pageSize);
-        countCmd.Parameters.AddWithValue("@Offset", offset);
-        dataCmd.Parameters.AddWithValue("@PageSize", pageSize);
-        dataCmd.Parameters.AddWithValue("@Offset", offset);
+        parameters["@PageSize"] = pageSize;
+        parameters["@Offset"] = offset;
 
-        if (filter != null)
+        foreach (var (name, value) in parameters)
         {
-            if (!string.IsNullOrWhiteSpace(filter.ProxyType))
-            {
-                countCmd.Parameters.AddWithValue("@ProxyType", filter.ProxyType);
-                dataCmd.Parameters.AddWithValue("@ProxyType", filter.ProxyType);
-            }
-            if (!string.IsNullOrWhiteSpace(filter.RemoteAddress))
-            {
-                countCmd.Parameters.AddWithValue("@RemoteAddress", $"%{filter.RemoteAddress}%");
-                dataCmd.Parameters.AddWithValue("@RemoteAddress", $"%{filter.RemoteAddress}%");
-            }
-            if (!string.IsNullOrWhiteSpace(filter.RemotePort))
-            {
-                countCmd.Parameters.AddWithValue("@RemotePort", filter.RemotePort);
-                dataCmd.Parameters.AddWithValue("@RemotePort", filter.RemotePort);
-            }
-            if (!string.IsNullOrWhiteSpace(filter.LocalAddress))
-            {
-                countCmd.Parameters.AddWithValue("@LocalAddress", $"%{filter.LocalAddress}%");
-                dataCmd.Parameters.AddWithValue("@LocalAddress", $"%{filter.LocalAddress}%");
-            }
-            if (!string.IsNullOrWhiteSpace(filter.LocalPort))
-            {
-                countCmd.Parameters.AddWithValue("@LocalPort", filter.LocalPort);
-                dataCmd.Parameters.AddWithValue("@LocalPort", filter.LocalPort);
-            }
+            countCmd.Parameters.AddWithValue(name, value);
+            dataCmd.Parameters.AddWithValue(name, value);
         }
 
         long totalCount = Convert.ToInt64(await countCmd.ExecuteScalarAsync());
@@ -145,7 +122,6 @@ public class DashboardDataService : IDashboardDataService
         var countryCodeMap = new Dictionary<string, string>();
 
         using var reader = await dataCmd.ExecuteReaderAsync();
-        var countryCodeOrdinal = reader.GetOrdinal("CountryCode");
 
         while (await reader.ReadAsync())
         {
@@ -172,8 +148,8 @@ public class DashboardDataService : IDashboardDataService
             if (reader.GetInt64(reader.GetOrdinal("IsBlacklisted")) == 1)
                 blacklistedIPs.Add(conn.RemoteAddress);
 
-            if (!reader.IsDBNull(countryCodeOrdinal))
-                countryCodeMap.TryAdd(conn.RemoteAddress, reader.GetString(countryCodeOrdinal));
+            if (!reader.IsDBNull(reader.GetOrdinal("CountryCode")))
+                countryCodeMap.TryAdd(conn.RemoteAddress, reader.GetString(reader.GetOrdinal("CountryCode")));
         }
 
         return new PagedResult<Connection>
@@ -186,6 +162,13 @@ public class DashboardDataService : IDashboardDataService
             BlacklistedIPs = blacklistedIPs,
             CountryCodeMap = countryCodeMap
         };
+
+        void AddFilter(string? value, string clause, string paramName, Func<string, object> transform)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return;
+            whereClause += $" AND {clause}";
+            parameters[paramName] = transform(value);
+        }
     }
 
     public async Task<List<ConnectionData>> GetConnectionDataAsync(string sessionId)

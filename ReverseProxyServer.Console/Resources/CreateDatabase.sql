@@ -122,6 +122,10 @@ CREATE INDEX IF NOT EXISTS IX_Connections_RemoteAddress ON Connections (
     RemoteAddress
 );
 
+CREATE INDEX IF NOT EXISTS IX_Connections_RemoteAddress_Time ON Connections (
+    RemoteAddress, ConnectionTime DESC
+);
+
 CREATE INDEX IF NOT EXISTS IX_Connections_InstanceID ON Connections (
     InstanceId
 );
@@ -148,4 +152,12 @@ CREATE INDEX IF NOT EXISTS IX_Connections_ProxyType ON Connections (
 
 CREATE INDEX IF NOT EXISTS IX_ConnectionData_SessionID ON ConnectionsData (
     SessionId
+);
+
+CREATE INDEX IF NOT EXISTS IX_IPAddressHistory_Blacklisted ON IPAddressHistory (
+    IsBlacklisted, IPAddress
+);
+
+CREATE INDEX IF NOT EXISTS IX_AbuseIPDB_CountryCode ON AbuseIPDB_CheckedIPS (
+    CountryCode, IPAddress
 );

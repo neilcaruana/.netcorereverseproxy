@@ -285,6 +285,8 @@
                             <th>Session</th>
                             <th>Type</th>
                             <th>Remote IP</th>
+                            <th style="min-width: 90px; width: 90px;">Status</th>
+                            <th style="width: 70px;">Country</th>
                             <th>Port</th>
                             <th style="width: 30px;"></th>
                             <th>Local Address</th>
@@ -311,6 +313,17 @@
                             <td>
                                 <input type="text" class="form-control form-control-sm filter-input" placeholder="Filter..." 
                                        value="@_filter.RemoteAddress" @onchange="e => ApplyFilter(f => f.RemoteAddress = e.Value?.ToString())" />
+                            </td>
+                            <td style="min-width: 90px;">
+                                <select class="form-select form-select-sm filter-input" value="@_filter.IsBlacklisted" @onchange="e => ApplyFilter(f => f.IsBlacklisted = e.Value?.ToString())">
+                                    <option value="">All</option>
+                                    <option value="Yes">Blocked</option>
+                                    <option value="No">Clean</option>
+                                </select>
+                            </td>
+                            <td>
+                                <input type="text" class="form-control form-control-sm filter-input" placeholder="Filter..." 
+                                       value="@_filter.CountryCode" @onchange="e => ApplyFilter(f => f.CountryCode = e.Value?.ToString())" />
                             </td>
                             <td>
                                 <input type="text" class="form-control form-control-sm filter-input" placeholder="Filter..." 
@@ -369,25 +382,7 @@
                                 </td>
                                 <td>
                                     <div class="position-relative">
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <code class="text-primary">@conn.RemoteAddress</code>
-                                        <span class="d-flex align-items-center text-nowrap ms-2 gap-1">
-                                            @if (_pagedConnections.BlacklistedIPs.Contains(conn.RemoteAddress))
-                                            {
-                                                <span role="button" class="badge bg-danger-subtle text-danger border border-danger-subtle cursor-pointer" 
-                                                      title="Blacklisted" @onclick="() => ShowIPDetailsAsync(conn.RemoteAddress, conn.Id)" @onclick:stopPropagation="true">🏴‍☠️ Blocked</span>
-                                            }
-                                            @if (_pagedConnections.CountryCodeMap.TryGetValue(conn.RemoteAddress, out var countryCode))
-                                            {
-                                                <span role="button" class="badge bg-light text-muted border cursor-pointer" title="@countryCode"
-                                                      @onclick="() => ShowIPDetailsAsync(conn.RemoteAddress, conn.Id)" @onclick:stopPropagation="true">
-                                                    <img src="https://flagcdn.com/w20/@(countryCode.ToLowerInvariant()).png" 
-                                                         width="14" height="10" alt="@countryCode" loading="lazy" />
-                                                    @countryCode
-                                                </span>
-                                            }
-                                        </span>
-                                    </div>
+                                    <code class="text-primary">@conn.RemoteAddress</code>
                                     @if (_selectedIP == conn.RemoteAddress && _selectedRowId == conn.Id)
                                     {
                                         <div class="ip-details-popover @popoverDirection card shadow border" @onclick:stopPropagation="true">
@@ -491,6 +486,24 @@
                                     }
                                     </div>
                                 </td>
+                                <td class="text-center">
+                                    @if (_pagedConnections.BlacklistedIPs.Contains(conn.RemoteAddress))
+                                    {
+                                        <span role="button" class="badge bg-danger-subtle text-danger border border-danger-subtle cursor-pointer" 
+                                              title="Blacklisted" @onclick="() => ShowIPDetailsAsync(conn.RemoteAddress, conn.Id)" @onclick:stopPropagation="true">🏴‍☠️ Blocked</span>
+                                    }
+                                </td>
+                                <td class="text-center">
+                                    @if (_pagedConnections.CountryCodeMap.TryGetValue(conn.RemoteAddress, out var countryCode))
+                                    {
+                                        <span role="button" class="badge bg-light text-muted border cursor-pointer" title="@countryCode"
+                                              @onclick="() => ShowIPDetailsAsync(conn.RemoteAddress, conn.Id)" @onclick:stopPropagation="true">
+                                            <img src="https://flagcdn.com/w20/@(countryCode.ToLowerInvariant()).png" 
+                                                 width="14" height="10" alt="@countryCode" loading="lazy" />
+                                            @countryCode
+                                        </span>
+                                    }
+                                </td>
                                 <td><code>@conn.RemotePort</code></td>
                                 <td class="text-center text-muted"><i class="bi bi-arrow-right"></i></td>
                                 <td><code>@conn.LocalAddress</code></td>
@@ -500,7 +513,7 @@
                             {
                                 var sessionData = _expandedSessions[conn.SessionId];
                                 <tr>
-                                    <td colspan="9" class="bg-light p-0">
+                                    <td colspan="11" class="bg-light p-0">
                                         <div class="p-2">
                                             @if (sessionData?.Any() == true)
                                             {
@@ -901,6 +914,9 @@
         totalStopwatch.Stop();
         await LogToConsoleAsync($"✅ Dashboard fully loaded in {totalStopwatch.ElapsedMilliseconds}ms");
         await InvokeAsync(StateHasChanged);
+
+        if (_activeTab == "worldview")
+            await ActivateWorldViewAsync();
     }
 
     private async Task LoadWithTimingAsync(string name, Func<Task> action)
