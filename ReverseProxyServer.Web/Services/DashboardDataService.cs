@@ -243,4 +243,37 @@ public class DashboardDataService : IDashboardDataService
 
         return new IPDetails { IPAddress = ipAddress };
     }
+
+    public async Task<List<CountryConnectionCount>> GetConnectionCountsByCountryAsync(DateTime fromDate, DateTime toDate)
+    {
+        var dataLayer = new SqlLiteDataLayer(_databasePath);
+        using var connection = await dataLayer.GetOpenConnection();
+
+        string sql = """
+            SELECT abuse.CountryCode, abuse.CountryName, COUNT(*) AS ConnectionCount
+            FROM Connections c
+            INNER JOIN AbuseIPDB_CheckedIPS abuse ON c.RemoteAddress = abuse.IPAddress
+            WHERE c.ConnectionTime >= @FromDate AND c.ConnectionTime <= @ToDate
+              AND abuse.CountryCode IS NOT NULL
+            GROUP BY abuse.CountryCode, abuse.CountryName
+            ORDER BY ConnectionCount DESC
+            """;
+
+        using var cmd = new SqliteCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@FromDate", fromDate.ToString("yyyy-MM-dd HH:mm:ss"));
+        cmd.Parameters.AddWithValue("@ToDate", toDate.ToString("yyyy-MM-dd HH:mm:ss"));
+
+        var results = new List<CountryConnectionCount>();
+        using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            results.Add(new CountryConnectionCount
+            {
+                CountryCode = reader.GetString(reader.GetOrdinal("CountryCode")),
+                CountryName = reader.IsDBNull(reader.GetOrdinal("CountryName")) ? string.Empty : reader.GetString(reader.GetOrdinal("CountryName")),
+                ConnectionCount = reader.GetInt64(reader.GetOrdinal("ConnectionCount"))
+            });
+        }
+        return results;
+    }
 }

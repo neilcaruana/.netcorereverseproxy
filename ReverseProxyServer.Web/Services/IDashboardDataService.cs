@@ -18,6 +18,16 @@ public interface IDashboardDataService
 
     // IP details (on-demand)
     Task<IPDetails> GetIPDetailsAsync(string ipAddress);
+
+    // World view - connection counts by country
+    Task<List<CountryConnectionCount>> GetConnectionCountsByCountryAsync(DateTime fromDate, DateTime toDate);
+}
+
+public class CountryConnectionCount
+{
+    public string CountryCode { get; init; } = string.Empty;
+    public string CountryName { get; init; } = string.Empty;
+    public long ConnectionCount { get; init; }
 }
 
 public class ConnectionStats

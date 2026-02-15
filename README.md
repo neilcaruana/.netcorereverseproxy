@@ -1,60 +1,60 @@
 # .NET Core Reverse Proxy
-A lightweight reverse proxy and simple Honeypot in .NET 9, designed to proxy requests and also act as a honeypot capturing request data for analysis. It supports both HTTP and HTTPS traffic, provides configurable logging capabilities, and can be easily extended for more advanced scenarios such as load balancing, request modification, and more.
+A high-performance TCP reverse proxy and honeypot built in C# on .NET 10. Designed for both traffic forwarding and honeypot monitoring, it captures and logs all connection activity in real-time to a local SQLite database.
 
 ## Features
-* HTTP and HTTPS Support: Forward HTTP and HTTPS requests transparently.
-* Support for a range of listening ports: Allowing parallel forward requests to different target servers based on configuration.
-* Sentinel Mode: Automatically listens on all available ports on the machine, used to act as a Honeypot for research purposes.
-* Logging: Log requests and responses for debugging and monitoring purposes.
-* Cancellation Support: Gracefully handle shutdown requests with proper cleanup.
-* Duplex Streaming: Real-time data processing with the ability to intercept and log data.
-* Asynchronous I/O: Leverages C#'s async/await for efficient network operations.
-* Task-based Asynchronous Pattern (TAP): Asynchronous programming is used extensively to efficiently handle all events including I/O and network operations.
-* Statistics: Provides a console report with active and historical connections by unique IP Addresses and ports.
-* AbuseIPDB support: Every request IP is cross referenced with the AbuseIPDB database and is blacklisted based on confidence score.
-* Sqlite Database support: All connection requests and data can be stored in a local DB, various statistics tables are generated storing all traffic history.
+* **Forward Proxy** — Relays TCP traffic to configured target hosts with full request/response capture
+* **Honeypot Mode** — Listens on configurable port ranges, captures attacker payloads, and drops connections
+* **Sentinel Mode** — Automatically listens on all 65,000 ports for maximum security coverage
+* **AbuseIPDB Integration** — Cross-references connecting IPs against the AbuseIPDB threat database and auto-blacklists threats
+* **Real-time Dashboard** — Blazor Server UI with SignalR-powered live event streaming and world heatmap
+* **SQLite Storage** — All connections, IP history, and abuse data persisted locally
+* **Composite Logging** — Console, file, and SignalR logger outputs running simultaneously
+* **Async I/O** — Leverages async/await and System.IO.Pipelines for efficient network operations
+* **Duplex Streaming** — Real-time bidirectional data capture with interception and logging
+* **Cancellation Support** — Graceful shutdown with proper cleanup
 
 ## Configuration
-Listening endpoints can be configured through the appsettings.json file. Each entry within the Endpoints section represents a separate proxy endpoint configuration, including its own type, listening port ranges, target host, target port etc.
+Listening endpoints are configured through `appsettings.json`. Each entry in the `EndPoints` section defines a proxy endpoint with its own type, listening port ranges, target host, and target port.
 
-Below is an example configuration for setting up multiple listening endpoints:
+The `DashboardUrl` setting points to the Blazor Server dashboard's SignalR hub for real-time event streaming.
 
-```
+```json
 {
   "SentinelMode": true,
   "SendTimeout": 60,
   "ReceiveTimeout": 60,
   "BufferSize": 4096,
-  "LogLevel": "Debug",
+  "LogLevel": "Info",
   "DatabasePath": "stats.db",
-  "AbuseIPDBApiKey": "APIKEY_VALUE",
+  "DashboardUrl": "http://ADDRESS:PORT/hubs/proxy-events",
+  "AbuseIPDBApiKey": "YOUR_API_KEY",
   "EndPoints": [
     {
       "ProxyType": "Forward",
-      "ListeningAddress": "localhost",
+      "ListeningAddress": "192.168.1.100",
       "ListeningPortRange": "80",
-      "TargetHost": "192.168.1.100",
+      "TargetHost": "localhost",
       "TargetPort": 81
     },
     {
       "ProxyType": "Forward",
-      "ListeningAddress": "localhost",
+      "ListeningAddress": "192.168.1.100",
       "ListeningPortRange": "443",
-      "TargetHost": "192.168.1.100",
+      "TargetHost": "localhost",
       "TargetPort": 444
     },
     {
       "ProxyType": "Honeypot",
-      "ListeningAddress": "localhost",
+      "ListeningAddress": "192.168.1.100",
       "ListeningPortRange": "1-79",
-      "TargetHost": "192.168.1.100",
+      "TargetHost": "localhost",
       "TargetPort": -1
     },
     {
       "ProxyType": "Honeypot",
-      "ListeningAddress": "localhost",
-      "ListeningPortRange": "82-120",
-      "TargetHost": "192.168.1.100",
+      "ListeningAddress": "192.168.1.100",
+      "ListeningPortRange": "82-442",
+      "TargetHost": "localhost",
       "TargetPort": -1
     }
   ]
