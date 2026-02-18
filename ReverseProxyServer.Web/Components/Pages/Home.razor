@@ -604,8 +604,8 @@
             <div style="max-height:600px; overflow-y:auto; background:#1e1e1e; padding:0.5rem 0.75rem; font-family:'Cascadia Code','Fira Code','Consolas','Courier New',monospace; font-size:0.75rem; line-height:1.6;">
                 @foreach (var evt in _liveEvents.ToList())
                 {
-                    <div style="padding:1px 4px; border-radius:2px; color:@GetTerminalLevelColor(evt.Level);">
-                        <span style="color:#608b4e; margin-right:1.5em;">@evt.Timestamp.ToString("yyyy-MM-dd HH:mm:ss.fff")</span><span style="font-weight:bold; display:inline-block; min-width:56px; margin-right:1.5em;">@evt.Level.ToString().ToUpperInvariant()</span><span style="color:#9cdcfe; margin-right:1.5em;">@(evt.CorrelationId ?? "—")</span><span>@evt.Message</span>@if (!string.IsNullOrEmpty(evt.ExceptionMessage)){<span style="color:#f48771; margin-left:1.5em;">@evt.ExceptionMessage</span>}
+                    <div style="display:flex; padding:1px 4px; border-radius:2px; color:@GetTerminalLevelColor(evt.Level);">
+                        <span style="flex-shrink:0; white-space:nowrap; color:#608b4e; margin-right:1.5em;">@evt.Timestamp.ToString("yyyy-MM-dd HH:mm:ss.fff")</span><span style="flex-shrink:0; white-space:nowrap; font-weight:bold; min-width:56px; margin-right:1.5em;">@evt.Level.ToString().ToUpperInvariant()</span><span style="flex-shrink:0; white-space:nowrap; color:#9cdcfe; margin-right:1.5em;">@(evt.CorrelationId ?? "—")</span><span style="flex:1; min-width:0; white-space:pre-wrap;">@evt.Message@if (!string.IsNullOrEmpty(evt.ExceptionMessage)){<span style="color:#f48771; margin-left:1.5em;">@evt.ExceptionMessage</span>}</span>
                     </div>
                 }
             </div>
@@ -638,7 +638,7 @@
                                         <code class="text-muted" style="font-size: 0.7rem;">@evt.CorrelationId[..Math.Min(8, evt.CorrelationId.Length)]</code>
                                     }
                                 </td>
-                                <td class="text-break">@evt.Message</td>
+                                <td class="text-break" style="white-space:pre-wrap;">@evt.Message</td>
                             </tr>
                         }
                     </tbody>

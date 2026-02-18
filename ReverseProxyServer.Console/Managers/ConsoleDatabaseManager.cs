@@ -150,11 +150,10 @@ internal class ConsoleDatabaseManager : IConsoleManager
                         dbIPRecord.IsBlacklisted = 0;
 
                     log += $"Update IP record {await ipAddressHistory.UpdateAsync(dbIPRecord).TimeOnlyAsync()}ms{Environment.NewLine}";
-                    return log += $"Total {stopwatch.ElapsedMilliseconds}ms";
                 }
             }
         }
-        return string.Empty;
+        return log += $"Total {stopwatch.ElapsedMilliseconds}ms"; ;
     }
 
     public async Task InsertNewConnectionData(ConnectionData connectionData)

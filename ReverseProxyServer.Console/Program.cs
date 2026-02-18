@@ -266,6 +266,7 @@ namespace ReverseProxyServer
             try
             {
                 if (consoleManager != null)
+
                 {
                     Connection newConnection = new()
                     {
@@ -280,9 +281,7 @@ namespace ReverseProxyServer
                         RemoteAddress = e.RemoteAddress,
                         RemotePort = e.RemotePort
                     };
-
-                    if (newConnection.RemoteAddress == "192.168.1.100")
-                    { }
+                   
                     string registerLog = await consoleManager.RegisterConnectionDetails(newConnection, settings?.AbuseIPDBApiKey);
                     await logSemaphore.WaitAsync(logCancellationSource.Token);
                     if (!string.IsNullOrWhiteSpace(registerLog))
