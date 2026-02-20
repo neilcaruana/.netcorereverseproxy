@@ -899,6 +899,7 @@
         _uniquePorts = null;
         _blacklistedIPs = null;
         _topConnection = null;
+        _countryCounts = null;
         _isLoading = true;
         _isLoadingConnections = true;
         _currentPage = 1;
@@ -959,7 +960,7 @@
         var sw = Stopwatch.StartNew();
         try
         {
-            await action();
+            await Task.Run(action);
             await LogToConsoleAsync($"📊 {name} loaded in {sw.ElapsedMilliseconds}ms");
         }
         catch (Exception ex)
@@ -980,7 +981,7 @@
 
         try
         {
-            _pagedConnections = await DashboardService.GetConnectionsPagedAsync(_fromDate, _toDate, _currentPage, PageSize, _filter);
+            _pagedConnections = await Task.Run(() => DashboardService.GetConnectionsPagedAsync(_fromDate, _toDate, _currentPage, PageSize, _filter));
             await LogToConsoleAsync($"📋 Connections page {_currentPage} loaded in {sw.ElapsedMilliseconds}ms ({_pagedConnections.Items.Count} of {_pagedConnections.TotalCount} records)");
         }
         catch (Exception ex)
@@ -1241,7 +1242,7 @@
 
         try
         {
-            _countryCounts = await DashboardService.GetConnectionCountsByCountryAsync(_fromDate, _toDate);
+            _countryCounts = await Task.Run(() => DashboardService.GetConnectionCountsByCountryAsync(_fromDate, _toDate));
             await RenderHeatmapAsync();
         }
         catch (Exception ex)
@@ -1264,26 +1265,32 @@
                     var el = document.getElementById('world-map');
                     if (!el) return;
                     if (window._leafletMap) { window._leafletMap.remove(); window._leafletMap = null; }
+                    var worldBounds = L.latLngBounds(L.latLng(-60, -180), L.latLng(75, 180));
                     var map = L.map('world-map', {
-                        center: [30, 10],
-                        zoom: 3,
-                        minZoom: 2,
-                        maxZoom: 18,
                         zoomControl: true,
                         scrollWheelZoom: true,
-                        worldCopyJump: true
+                        worldCopyJump: false,
+                        maxBounds: L.latLngBounds(L.latLng(-90, -180), L.latLng(90, 180)),
+                        maxBoundsViscosity: 1.0,
+                        maxZoom: 18
                     });
                     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
                         attribution: '&copy; <a href=""https://www.openstreetmap.org/copyright"">OSM</a> &copy; <a href=""https://carto.com/"">CARTO</a>',
                         subdomains: 'abcd',
-                        maxZoom: 19
+                        maxZoom: 19,
+                        noWrap: true,
+                        bounds: [[-90, -180], [90, 180]]
                     }).addTo(map);
                     window._leafletMap = map;
                     window._leafletGeoLayer = null;
                     window._leafletLabelsLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
-                        subdomains: 'abcd', maxZoom: 19, pane: 'overlayPane'
+                        subdomains: 'abcd', maxZoom: 19, noWrap: true, bounds: [[-90, -180], [90, 180]], pane: 'overlayPane'
                     }).addTo(map);
-                    setTimeout(function() { map.invalidateSize(); }, 100);
+                    setTimeout(function() {
+                        map.invalidateSize();
+                        map.fitBounds(worldBounds, { animate: false, padding: [10, 10] });
+                        map.setMinZoom(map.getZoom());
+                    }, 150);
                 })();
             ");
         }

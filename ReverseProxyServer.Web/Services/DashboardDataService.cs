@@ -233,11 +233,15 @@ public class DashboardDataService : IDashboardDataService
         using var connection = await dataLayer.GetOpenConnection();
 
         string sql = """
-            SELECT abuse.CountryCode, abuse.CountryName, COUNT(*) AS ConnectionCount
-            FROM Connections c
-            INNER JOIN AbuseIPDB_CheckedIPS abuse ON c.RemoteAddress = abuse.IPAddress
-            WHERE c.ConnectionTime >= @FromDate AND c.ConnectionTime <= @ToDate
-              AND abuse.CountryCode IS NOT NULL
+            SELECT abuse.CountryCode, abuse.CountryName, SUM(ip_counts.Hits) AS ConnectionCount
+            FROM (
+                SELECT RemoteAddress, COUNT(*) AS Hits
+                FROM Connections
+                WHERE ConnectionTime >= @FromDate AND ConnectionTime <= @ToDate
+                GROUP BY RemoteAddress
+            ) AS ip_counts
+            INNER JOIN AbuseIPDB_CheckedIPS abuse ON ip_counts.RemoteAddress = abuse.IPAddress
+            WHERE abuse.CountryCode IS NOT NULL
             GROUP BY abuse.CountryCode, abuse.CountryName
             ORDER BY ConnectionCount DESC
             """;
