@@ -21,6 +21,9 @@ public interface IDashboardDataService
 
     // World view - connection counts by country
     Task<List<CountryConnectionCount>> GetConnectionCountsByCountryAsync(DateTime fromDate, DateTime toDate);
+
+    // Top connection by hits
+    Task<TopConnectionInfo?> GetTopConnectionAsync(DateTime fromDate, DateTime toDate);
 }
 
 public class CountryConnectionCount
@@ -90,4 +93,12 @@ public class IPDetails
     public long? DistinctUserCount { get; init; }
     public DateTime? LastReportedAt { get; init; }
     public bool HasAbuseData => AbuseConfidence != null;
+}
+
+public class TopConnectionInfo
+{
+    public string IPAddress { get; init; } = string.Empty;
+    public long Hits { get; init; }
+    public string? CountryCode { get; init; }
+    public string? CountryName { get; init; }
 }

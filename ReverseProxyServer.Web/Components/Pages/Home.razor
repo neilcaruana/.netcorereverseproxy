@@ -120,7 +120,7 @@
         </div>
     </div>
 
-    <!-- Unique IPs Card -->
+    <!-- Source Card -->
     <div class="col-12 col-md-6 col-xl-3">
         <div class="stat-card stat-card-info">
             <div class="stat-card-body">
@@ -128,45 +128,25 @@
                     <i class="bi bi-globe"></i>
                 </div>
                 <div class="stat-content">
-                    <h6 class="stat-label">Unique IPs</h6>
-                    @if (_uniqueIPs == null)
+                    <h6 class="stat-label">Source</h6>
+                    @if (_uniqueIPs == null || _uniquePorts == null)
                     {
                         <div class="stat-value"><span class="spinner-border spinner-border-sm"></span></div>
+                        <div class="stat-subtitle">Loading...</div>
                     }
                     else
                     {
                         <div class="stat-value">@FormatNumber(_uniqueIPs.Value)</div>
+                        <div class="stat-subtitle">
+                            Distinct IPs · <span class="fw-semibold">@FormatNumber(_uniquePorts.Value)</span> Distinct Ports
+                        </div>
                     }
-                    <div class="stat-subtitle">Distinct source addresses</div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Unique Ports Card -->
-    <div class="col-12 col-md-6 col-xl-3">
-        <div class="stat-card stat-card-secondary">
-            <div class="stat-card-body">
-                <div class="stat-icon">
-                    <i class="bi bi-diagram-3"></i>
-                </div>
-                <div class="stat-content">
-                    <h6 class="stat-label">Unique Ports</h6>
-                    @if (_uniquePorts == null)
-                    {
-                        <div class="stat-value"><span class="spinner-border spinner-border-sm"></span></div>
-                    }
-                    else
-                    {
-                        <div class="stat-value">@FormatNumber(_uniquePorts.Value)</div>
-                    }
-                    <div class="stat-subtitle">Target ports accessed</div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Blacklisted IPs Card -->
+    <!-- Blacklisted Card -->
     <div class="col-12 col-md-6 col-xl-3">
         <div class="stat-card stat-card-danger">
             <div class="stat-card-body">
@@ -174,16 +154,64 @@
                     <i class="bi bi-shield-x"></i>
                 </div>
                 <div class="stat-content">
-                    <h6 class="stat-label">Blacklisted IPs</h6>
-                    @if (_blacklistedIPs == null)
+                    <h6 class="stat-label">Blacklisted</h6>
+                    @if (_blacklistedIPs == null || _uniqueIPs == null)
                     {
                         <div class="stat-value"><span class="spinner-border spinner-border-sm"></span></div>
+                        <div class="stat-subtitle">Loading...</div>
                     }
                     else
                     {
                         <div class="stat-value">@FormatNumber(_blacklistedIPs.Value)</div>
+                        <div class="stat-subtitle">
+                            @if (_uniqueIPs.Value > 0)
+                            {
+                                @($"{(double)_blacklistedIPs.Value / _uniqueIPs.Value:P1} of unique IPs")
+                            }
+                            else
+                            {
+                                @("Blocked addresses")
+                            }
+                        </div>
                     }
-                    <div class="stat-subtitle">Blocked addresses</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Connection Card -->
+    <div class="col-12 col-md-6 col-xl-3">
+        <div class="stat-card stat-card-secondary">
+            <div class="stat-card-body">
+                <div class="stat-icon">
+                    <i class="bi bi-trophy"></i>
+                </div>
+                <div class="stat-content">
+                    <h6 class="stat-label">Top Connection</h6>
+                    @if (_topConnection == null && _isLoading)
+                    {
+                        <div class="stat-value"><span class="spinner-border spinner-border-sm"></span></div>
+                        <div class="stat-subtitle">Loading...</div>
+                    }
+                    else if (_topConnection != null)
+                    {
+                        <div class="stat-value" style="font-size: 0.95rem;">@_topConnection.IPAddress</div>
+                        <div class="stat-subtitle">
+                            <span class="fw-semibold">@FormatNumber(_topConnection.Hits)</span> hits
+                            @if (!string.IsNullOrEmpty(_topConnection.CountryCode))
+                            {
+                                @(" · ")
+                                <img src="https://flagcdn.com/w20/@(_topConnection.CountryCode.ToLowerInvariant()).png"
+                                     width="14" height="10" alt="@_topConnection.CountryCode" loading="lazy" class="me-1" />
+                                @_topConnection.CountryName
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="stat-value">—</div>
+                        <div class="stat-subtitle">No connections</div>
+                    }
                 </div>
             </div>
         </div>
@@ -779,6 +807,7 @@
     private long? _uniqueIPs;
     private long? _uniquePorts;
     private long? _blacklistedIPs;
+    private TopConnectionInfo? _topConnection;
 
     // Paged connections
     private PagedResult<Connection>? _pagedConnections;
@@ -869,6 +898,7 @@
         _uniqueIPs = null;
         _uniquePorts = null;
         _blacklistedIPs = null;
+        _topConnection = null;
         _isLoading = true;
         _isLoadingConnections = true;
         _currentPage = 1;
@@ -898,6 +928,11 @@
             LoadWithTimingAsync("BlacklistedIPs", async () =>
             {
                 _blacklistedIPs = await DashboardService.GetBlacklistedIPsCountAsync(_fromDate, _toDate);
+                await InvokeAsync(StateHasChanged);
+            }),
+            LoadWithTimingAsync("TopConnection", async () =>
+            {
+                _topConnection = await DashboardService.GetTopConnectionAsync(_fromDate, _toDate);
                 await InvokeAsync(StateHasChanged);
             }),
             LoadWithTimingAsync("Connections", async () =>

@@ -259,4 +259,42 @@ public class DashboardDataService : IDashboardDataService
         }
         return results;
     }
+
+    public async Task<TopConnectionInfo?> GetTopConnectionAsync(DateTime fromDate, DateTime toDate)
+    {
+        var dataLayer = new SqlLiteDataLayer(_databasePath);
+        using var connection = await dataLayer.GetOpenConnection();
+
+        string sql = """
+            SELECT top.RemoteAddress, top.Hits,
+                   abuse.CountryCode, abuse.CountryName
+            FROM (
+                SELECT RemoteAddress, COUNT(*) AS Hits
+                FROM Connections
+                WHERE ConnectionTime >= @FromDate AND ConnectionTime <= @ToDate
+                GROUP BY RemoteAddress
+                ORDER BY Hits DESC
+                LIMIT 1
+            ) AS top
+            LEFT JOIN AbuseIPDB_CheckedIPS abuse ON top.RemoteAddress = abuse.IPAddress
+            """;
+
+        using var cmd = new SqliteCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@FromDate", fromDate.ToString("yyyy-MM-dd HH:mm:ss"));
+        cmd.Parameters.AddWithValue("@ToDate", toDate.ToString("yyyy-MM-dd HH:mm:ss"));
+
+        using var reader = await cmd.ExecuteReaderAsync();
+        if (await reader.ReadAsync())
+        {
+            return new TopConnectionInfo
+            {
+                IPAddress = reader.GetString(reader.GetOrdinal("RemoteAddress")),
+                Hits = reader.GetInt64(reader.GetOrdinal("Hits")),
+                CountryCode = reader.IsDBNull(reader.GetOrdinal("CountryCode")) ? null : reader.GetString(reader.GetOrdinal("CountryCode")),
+                CountryName = reader.IsDBNull(reader.GetOrdinal("CountryName")) ? null : reader.GetString(reader.GetOrdinal("CountryName"))
+            };
+        }
+
+        return null;
+    }
 }
