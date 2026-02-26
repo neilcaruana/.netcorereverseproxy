@@ -146,6 +146,10 @@ CREATE INDEX IF NOT EXISTS IX_Connections_ConnectionTime_Desc ON Connections (
     ConnectionTime DESC
 );
 
+CREATE INDEX IF NOT EXISTS IX_Connections_Time_RemoteAddress ON Connections (
+    ConnectionTime, RemoteAddress
+);
+
 CREATE INDEX IF NOT EXISTS IX_Connections_ProxyType ON Connections (
     ProxyType
 );
