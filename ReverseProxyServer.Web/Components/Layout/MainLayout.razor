@@ -1,27 +1,23 @@
 @inherits LayoutComponentBase
 
 <div class="page">
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <nav class="navbar navbar-dark bg-dark py-1">
         <div class="container-fluid">
-            <a class="navbar-brand" href="/">
-                <span class="badge bg-primary me-2">🛡️</span>
+            <a class="navbar-brand py-0" href="/" style="font-size:0.9rem;">
+                <span class="badge bg-primary me-1" style="font-size:0.65rem;">🛡️</span>
                 Reverse Proxy Dashboard
             </a>
-            <div class="navbar-nav ms-auto">
-                <span class="navbar-text text-light">
-                    <small>Real-time monitoring</small>
-                </span>
-            </div>
+            <span class="navbar-text text-light small py-0">Real-time monitoring</span>
         </div>
     </nav>
 
-    <main class="container-fluid mt-4">
+    <main class="container-fluid mt-2 px-3">
         @Body
     </main>
 
-    <footer class="footer mt-auto py-3 bg-light">
+    <footer class="footer mt-auto py-1 bg-light">
         <div class="container text-center">
-            <span class="text-muted">Reverse Proxy Server Dashboard © @DateTime.Now.Year</span>
+            <small class="text-muted" style="font-size:0.7rem;">Reverse Proxy Server Dashboard © @DateTime.Now.Year</small>
         </div>
     </footer>
 </div>

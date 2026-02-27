@@ -7,16 +7,19 @@
       "launchBrowser": true,
       "applicationUrl": "http://localhost:5100",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_PREVENTHOSTINGSTARTUP": "true"
       }
     },
-    "production": {
+    "http (Release DB)": {
       "commandName": "Project",
       "dotnetRunMessages": true,
       "launchBrowser": true,
       "applicationUrl": "http://localhost:5100",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Production"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_PREVENTHOSTINGSTARTUP": "true",
+        "Database__Path": "C:\\Data\\Code\\ReverseProxyServer\\ReverseProxyServer.Console\\bin\\Release\\net10.0\\stats.db"
       }
     }
   }

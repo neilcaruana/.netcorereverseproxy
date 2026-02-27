@@ -15,7 +15,7 @@
 <PageTitle>Dashboard - Reverse Proxy Server</PageTitle>
 
 <!-- Header with Date Range -->
-<div class="dashboard-header mb-2">
+<div class="dashboard-header mb-1">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
         <div>
             <h1 class="h5 mb-0 fw-bold">
@@ -58,7 +58,7 @@
 </div>
 
 <!-- Tabs -->
-<ul class="nav nav-tabs mb-3">
+<ul class="nav nav-tabs mb-2">
     <li class="nav-item">
         <button class="nav-link @(_activeTab == "statistics" ? "active" : "")" @onclick='() => _activeTab = "statistics"'>
             <i class="bi bi-bar-chart me-1"></i>Statistics
@@ -92,7 +92,7 @@
 @if (_activeTab == "statistics")
 {
 <!-- Stats Cards -->
-<div class="row g-2 mb-2">
+<div class="row g-2 mb-1">
     <!-- Total Connections Card -->
     <div class="col-12 col-md-6 col-xl-3">
         <div class="stat-card stat-card-primary">
@@ -677,7 +677,7 @@
 </div>
 }
 
-@* World View tab uses CSS visibility (not @if) to keep the Google Maps instance alive across tab switches *@
+@* World View tab uses CSS display to keep the Google Maps instance alive across tab switches *@
 <div style="display: @(_activeTab == "worldview" ? "block" : "none")">
 <div class="card shadow-sm">
     <div class="card-header bg-white py-2">
@@ -709,7 +709,7 @@
     <div class="card-body p-0 position-relative">
         @if (_isLoadingWorldView)
         {
-            <div class="position-absolute top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center" style="z-index:20; background:rgba(255,255,255,0.7); transition:opacity 0.3s ease;">
+            <div class="position-absolute top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center" style="z-index:20; background:rgba(255,255,255,0.7);">
                 <div class="text-center">
                     <div class="spinner-border text-primary" role="status"></div>
                     <div class="text-muted small mt-2">Loading map...</div>
@@ -717,7 +717,7 @@
             </div>
         }
         <div id="world-map" style="width:100%; height:520px;"></div>
-        @if (_countryCounts != null && _countryCounts.Count > 0)
+        @if (_countryCounts is { Count: > 0 })
         {
             <div class="position-absolute bottom-0 start-0 m-3 p-2 bg-white rounded shadow-sm border" style="z-index:10; font-size:0.7rem;">
                 <div class="fw-semibold mb-1">Connections by Country</div>
@@ -830,8 +830,9 @@
     // World view state
     private List<CountryConnectionCount>? _countryCounts;
     private bool _isLoadingWorldView;
-    private bool _mapRendered;
+    private bool _mapInitialized;
     private bool _darkMapStyle = true;
+    private const string MapElementId = "world-map";
     private const string MapId = "eb64f89d349abcdbea900459";
     private const string DatasetId = "3695db17-21fc-48d4-94ea-bdc7218fe18b";
 
@@ -870,13 +871,13 @@
 
     private string? _error;
 
-    protected override void OnAfterRender(bool firstRender)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender && !_hasInitialized)
         {
             _hasInitialized = true;
-            _ = LoadAllDataAsync();
             _ = StartHubConnectionAsync();
+            await LoadAllDataAsync();
         }
     }
 
@@ -933,7 +934,7 @@
         _blacklistedIPs = null;
         _topConnection = null;
         _countryCounts = null;
-        _mapRendered = false;
+        _mapInitialized = false;
         _isLoading = true;
         _isLoadingConnections = true;
         _currentPage = 1;
@@ -1259,6 +1260,8 @@
 
     public async ValueTask DisposeAsync()
     {
+        try { await JS.InvokeVoidAsync("worldMap.dispose"); } catch { }
+
         if (_hubConnection is not null)
         {
             await _hubConnection.DisposeAsync();
@@ -1269,24 +1272,9 @@
     {
         _activeTab = "worldview";
 
-        if (_mapRendered)
+        if (_mapInitialized)
         {
-            // Container transitions from display:none to display:block.
-            // Google Maps needs to recalculate its internal viewport dimensions
-            // for dataset layer mouse events (tooltips) to work correctly.
-            try
-            {
-                await JS.InvokeVoidAsync("eval", @"
-                    setTimeout(function() {
-                        if (window._gmap && window.google) {
-                            var c = window._gmap.getCenter();
-                            google.maps.event.trigger(window._gmap, 'resize');
-                            if (c) window._gmap.setCenter(c);
-                        }
-                    }, 100);
-                ");
-            }
-            catch { }
+            try { await JS.InvokeVoidAsync("worldMap.resize"); } catch { }
             return;
         }
 
@@ -1296,11 +1284,8 @@
 
         try
         {
-            if (_countryCounts == null)
-                _countryCounts = await Task.Run(() => DashboardService.GetConnectionCountsByCountryAsync(_fromDate, _toDate));
-
-            await RenderMapAsync();
-            _mapRendered = true;
+            _countryCounts ??= await Task.Run(() => DashboardService.GetConnectionCountsByCountryAsync(_fromDate, _toDate));
+            _mapInitialized = await InitMapAsync();
         }
         catch (Exception ex)
         {
@@ -1313,161 +1298,24 @@
         }
     }
 
-    private async Task RenderMapAsync()
+    private async Task<bool> InitMapAsync()
     {
-        var valuesJson = "{}";
-        if (_countryCounts != null && _countryCounts.Count > 0)
-        {
-            var values = _countryCounts
-                .Where(c => !string.IsNullOrWhiteSpace(c.CountryCode))
-                .ToDictionary(c => c.CountryCode.ToUpperInvariant(), c => c.ConnectionCount);
-            valuesJson = System.Text.Json.JsonSerializer.Serialize(values);
-        }
+        var countryData = _countryCounts?
+            .Where(c => !string.IsNullOrWhiteSpace(c.CountryCode))
+            .ToDictionary(c => c.CountryCode.ToUpperInvariant(), c => c.ConnectionCount)
+            ?? [];
 
         var colorScheme = _darkMapStyle ? "DARK" : "LIGHT";
 
-        try
+        // Google Maps loads async — retry briefly if not ready yet
+        for (var attempt = 0; attempt < 10; attempt++)
         {
-            await JS.InvokeVoidAsync("eval", $@"
-                (function() {{
-                    var el = document.getElementById('world-map');
-                    if (!el || !window.google || !google.maps) return;
-
-                    var DATASET_ID = '{DatasetId}';
-                    var MAP_ID = '{MapId}';
-                    var COLOR_SCHEME = '{colorScheme}';
-
-                    window._gmapValues = {valuesJson};
-                    window._gmapMaxCount = 0;
-                    Object.keys(window._gmapValues).forEach(function(k) {{ if (window._gmapValues[k] > window._gmapMaxCount) window._gmapMaxCount = window._gmapValues[k]; }});
-                    console.log('[WorldView] Values:', Object.keys(window._gmapValues).length, 'countries, Max:', window._gmapMaxCount, 'ColorScheme:', COLOR_SCHEME);
-
-                    window._gmapGetColor = function(count) {{
-                        if (!count || window._gmapMaxCount === 0) return '#e8e8e8';
-                        var ratio = Math.log(count + 1) / Math.log(window._gmapMaxCount + 1);
-                        var stops = [
-                            [0.0, [0xff, 0xff, 0xb2]],
-                            [0.25, [0xfe, 0xcc, 0x5c]],
-                            [0.5,  [0xfd, 0x8d, 0x3c]],
-                            [0.75, [0xf0, 0x3b, 0x20]],
-                            [1.0,  [0xbd, 0x00, 0x26]]
-                        ];
-                        var i = 1;
-                        while (i < stops.length - 1 && ratio > stops[i][0]) i++;
-                        var from = stops[i - 1], to = stops[i];
-                        var t = (ratio - from[0]) / (to[0] - from[0]);
-                        var r = Math.round(from[1][0] + (to[1][0] - from[1][0]) * t);
-                        var g = Math.round(from[1][1] + (to[1][1] - from[1][1]) * t);
-                        var b = Math.round(from[1][2] + (to[1][2] - from[1][2]) * t);
-                        return 'rgb(' + r + ',' + g + ',' + b + ')';
-                    }};
-
-                    var needsRecreate = window._gmapCurrentScheme !== COLOR_SCHEME
-                        || (window._gmap && !document.contains(window._gmap.getDiv()));
-
-                    if (needsRecreate) {{
-                        window._gmap = null;
-                        window._gmapClickBound = false;
-                        if (window._gmapTooltip) window._gmapTooltip.style.display = 'none';
-                        el.innerHTML = '';
-                        window._gmapCurrentScheme = COLOR_SCHEME;
-                    }}
-
-                    if (!window._gmap) {{
-                        window._gmap = new google.maps.Map(el, {{
-                            center: {{ lat: 20, lng: 0 }},
-                            zoom: 2,
-                            minZoom: 2,
-                            maxZoom: 12,
-                            mapId: MAP_ID,
-                            colorScheme: COLOR_SCHEME,
-                            gestureHandling: 'greedy',
-                            streetViewControl: false,
-                            fullscreenControl: false,
-                            mapTypeControl: false
-                        }});
-                    }}
-
-                    var map = window._gmap;
-                    var datasetLayer = map.getDatasetFeatureLayer(DATASET_ID);
-
-                    if (!datasetLayer) {{
-                        console.error('[WorldView] Dataset feature layer not available for ID:', DATASET_ID);
-                        return;
-                    }}
-
-                    datasetLayer.style = function(params) {{
-                        var attrs = params.feature.datasetAttributes;
-                        var code = attrs && attrs['ISO3166-1-Alpha-2'] ? attrs['ISO3166-1-Alpha-2'].toString().toUpperCase() : null;
-                        var count = code && window._gmapValues[code] ? window._gmapValues[code] : 0;
-                        return {{
-                            fillColor: window._gmapGetColor(count),
-                            fillOpacity: count ? 0.8 : 0.05,
-                            strokeColor: '#adb5bd',
-                            strokeWeight: 0.4
-                        }};
-                    }};
-
-                    if (!window._gmapTooltip) {{
-                        var tip = document.createElement('div');
-                        tip.style.cssText = 'position:fixed;pointer-events:none;z-index:9999;display:none;'
-                            + 'background:#fff;border:1px solid #dee2e6;border-radius:0.375rem;'
-                            + 'box-shadow:0 0.125rem 0.5rem rgba(0,0,0,0.15);padding:0.4rem 0.65rem;'
-                            + 'font-family:inherit;font-size:0.75rem;line-height:1.4;max-width:220px;';
-                        document.body.appendChild(tip);
-                        window._gmapTooltip = tip;
-                    }}
-
-                    if (!window._gmapClickBound) {{
-                        window._gmapClickBound = true;
-                        window._gmapHideTimer = 0;
-                        window._gmapFeatureEventTime = 0;
-                        window._gmapMouseX = 0;
-                        window._gmapMouseY = 0;
-
-                        el.addEventListener('mousemove', function(e) {{
-                            window._gmapMouseX = e.clientX;
-                            window._gmapMouseY = e.clientY;
-                        }});
-                        el.addEventListener('mouseleave', function() {{
-                            clearTimeout(window._gmapHideTimer);
-                            window._gmapTooltip.style.display = 'none';
-                        }});
-
-                        datasetLayer.addListener('mousemove', function(event) {{
-                            clearTimeout(window._gmapHideTimer);
-                            window._gmapFeatureEventTime = Date.now();
-                            var tip = window._gmapTooltip;
-                            var attrs = event.features && event.features[0] ? event.features[0].datasetAttributes : null;
-                            if (!attrs) {{ tip.style.display = 'none'; return; }}
-                            var code = attrs['ISO3166-1-Alpha-2'] ? attrs['ISO3166-1-Alpha-2'].toString().toUpperCase() : null;
-                            var count = code && window._gmapValues[code] ? window._gmapValues[code] : 0;
-                            if (!count) {{ tip.style.display = 'none'; return; }}
-                            var name = attrs['ADMIN'] || attrs['NAME'] || attrs['name'] || code || 'Unknown';
-                            var flag = code ? '<img src=""https://flagcdn.com/w20/' + code.toLowerCase() + '.png"" width=""14"" height=""10"" style=""vertical-align:middle;margin-right:4px"" />' : '';
-                            tip.innerHTML = '<div style=""font-weight:600;margin-bottom:2px"">' + flag + name + '</div>'
-                                + '<span style=""color:#6c757d"">' + count.toLocaleString() + ' connections</span>';
-                            tip.style.display = 'block';
-                            var mx = (event.domEvent && event.domEvent.clientX) ? event.domEvent.clientX : window._gmapMouseX;
-                            var my = (event.domEvent && event.domEvent.clientY) ? event.domEvent.clientY : window._gmapMouseY;
-                            tip.style.left = (mx + 14) + 'px';
-                            tip.style.top = (my + 14) + 'px';
-                        }});
-                        map.addListener('mousemove', function() {{
-                            clearTimeout(window._gmapHideTimer);
-                            window._gmapHideTimer = setTimeout(function() {{
-                                if (Date.now() - window._gmapFeatureEventTime > 100) {{
-                                    window._gmapTooltip.style.display = 'none';
-                                }}
-                            }}, 120);
-                        }});
-                    }}
-
-                    console.log('[WorldView] Dataset layer styled successfully.');
-                }})();
-            ");
+            var success = await JS.InvokeAsync<bool>("worldMap.init", MapElementId, MapId, DatasetId, colorScheme, countryData);
+            if (success) return true;
+            await Task.Delay(300);
         }
-        catch { }
+
+        return false;
     }
 
     private async Task ToggleMapStyleAsync(bool dark)
@@ -1480,7 +1328,7 @@
 
         try
         {
-            await RenderMapAsync();
+            await InitMapAsync();
         }
         catch (Exception ex)
         {
