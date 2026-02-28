@@ -8,7 +8,7 @@
 @inject IDashboardDataService DashboardService
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
-@inject IOptions<DatabaseSettings> DatabaseSettings
+@inject IOptionsMonitor<DatabaseSettings> DatabaseSettings
 @implements IAsyncDisposable
 @rendermode InteractiveServer
 
@@ -794,7 +794,7 @@
                         <h6 class="fw-semibold mb-2" style="font-size:0.85rem;"><i class="bi bi-gear me-1"></i>Environment</h6>
                         <table class="table table-sm table-borderless mb-2" style="font-size:0.75rem;">
                             <tbody>
-                                <tr><td class="text-muted py-0">Database</td><td class="py-0"><code style="font-size:0.7rem; word-break:break-all;">@DatabaseSettings.Value.Path</code></td></tr>
+                                <tr><td class="text-muted py-0">Database</td><td class="py-0"><code style="font-size:0.7rem; word-break:break-all;">@DatabaseSettings.CurrentValue.Path</code></td></tr>
                                 <tr><td class="text-muted py-0">Runtime</td><td class="py-0"><code style="font-size:0.7rem;">@System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription</code></td></tr>
                                 <tr><td class="text-muted py-0">OS</td><td class="py-0"><code style="font-size:0.7rem;">@Environment.OSVersion</code></td></tr>
                             </tbody>
@@ -813,6 +813,34 @@
         </div>
     </div>
 </div>
+}
+
+@if (_showDbSwitcher)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,0.5);" @onclick="() => _showDbSwitcher = false">
+        <div class="modal-dialog modal-dialog-centered" @onclick:stopPropagation="true">
+            <div class="modal-content">
+                <div class="modal-header py-2">
+                    <h6 class="modal-title mb-0"><i class="bi bi-database me-2"></i>Switch Database</h6>
+                    <button type="button" class="btn-close" @onclick="() => _showDbSwitcher = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-grid gap-2">
+                        <button class="btn @(_activeDb == "Release" ? "btn-primary" : "btn-outline-secondary") text-start"
+                                @onclick='() => SwitchDatabaseAsync("Release")'>
+                            <i class="bi bi-box-seam me-2"></i>Release
+                            <br /><small class="text-opacity-75" style="font-size:0.65rem;">@DatabaseSettings.CurrentValue.ReleasePath</small>
+                        </button>
+                        <button class="btn @(_activeDb == "Debug" ? "btn-primary" : "btn-outline-secondary") text-start"
+                                @onclick='() => SwitchDatabaseAsync("Debug")'>
+                            <i class="bi bi-bug me-2"></i>Debug
+                            <br /><small class="text-opacity-75" style="font-size:0.65rem;">@DatabaseSettings.CurrentValue.DebugPath</small>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 }
 
 @code {
@@ -871,14 +899,58 @@
 
     private string? _error;
 
+    // Database switcher
+    private bool _showDbSwitcher;
+    private string _activeDb = "Release";
+    private DotNetObjectReference<Home>? _dotNetRef;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender && !_hasInitialized)
         {
             _hasInitialized = true;
+            _dotNetRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("eval", """
+                if (!window.__dbSwitcherHandler) {
+                    window.__dbSwitcherHandler = (e) => {
+                        if (e.ctrlKey && e.shiftKey && e.code === 'KeyD') {
+                            e.preventDefault();
+                            if (window.__dbSwitcherRef)
+                                window.__dbSwitcherRef.invokeMethodAsync('ToggleDbSwitcher');
+                        }
+                    };
+                    document.addEventListener('keydown', window.__dbSwitcherHandler);
+                }
+                window.__setDbSwitcherRef = (ref) => { window.__dbSwitcherRef = ref; };
+                """);
+            await JS.InvokeVoidAsync("__setDbSwitcherRef", _dotNetRef);
             _ = StartHubConnectionAsync();
             await LoadAllDataAsync();
         }
+    }
+
+    [JSInvokable]
+    public void ToggleDbSwitcher()
+    {
+        _showDbSwitcher = !_showDbSwitcher;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SwitchDatabaseAsync(string target)
+    {
+        var settings = DatabaseSettings.CurrentValue;
+        var newPath = target == "Debug" ? settings.DebugPath : settings.ReleasePath;
+
+        if (string.IsNullOrEmpty(newPath) || settings.Path == newPath) 
+        {
+            _showDbSwitcher = false;
+            return;
+        }
+
+        settings.Path = newPath;
+        _activeDb = target;
+        _showDbSwitcher = false;
+        await LoadAllDataAsync();
     }
 
     private async Task StartHubConnectionAsync()
@@ -1261,6 +1333,19 @@
     public async ValueTask DisposeAsync()
     {
         try { await JS.InvokeVoidAsync("worldMap.dispose"); } catch { }
+        try
+        {
+            await JS.InvokeVoidAsync("eval", """
+                if (window.__dbSwitcherHandler) {
+                    document.removeEventListener('keydown', window.__dbSwitcherHandler);
+                    window.__dbSwitcherHandler = null;
+                    window.__dbSwitcherRef = null;
+                }
+                """);
+        }
+        catch { }
+
+        _dotNetRef?.Dispose();
 
         if (_hubConnection is not null)
         {

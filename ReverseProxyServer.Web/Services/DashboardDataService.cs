@@ -8,19 +8,21 @@ namespace ReverseProxyServer.Web.Services;
 
 public class DashboardDataService : IDashboardDataService
 {
-    private readonly string _databasePath;
+    private readonly IOptionsMonitor<DatabaseSettings> _settings;
 
-    public DashboardDataService(IOptions<DatabaseSettings> settings)
+    public DashboardDataService(IOptionsMonitor<DatabaseSettings> settings)
     {
-        _databasePath = settings.Value.Path;
+        _settings = settings;
     }
+
+    private string DatabasePath => _settings.CurrentValue.Path;
 
     private static string GetDateFilter(DateTime fromDate, DateTime toDate) =>
         $"ConnectionTime >= '{fromDate:yyyy-MM-dd HH:mm:ss}' AND ConnectionTime <= '{toDate:yyyy-MM-dd HH:mm:ss}'";
 
     public async Task<ConnectionStats> GetConnectionStatsAsync(DateTime fromDate, DateTime toDate)
     {
-        using var repo = new GenericSqliteRepository<Connection>(_databasePath);
+        using var repo = new GenericSqliteRepository<Connection>(DatabasePath);
         string dateFilter = GetDateFilter(fromDate, toDate);
 
         var totalCount = await repo.CountAsync(dateFilter);
@@ -36,28 +38,28 @@ public class DashboardDataService : IDashboardDataService
 
         public async Task<long> GetUniqueIPsCountAsync(DateTime fromDate, DateTime toDate)
         {
-            using var repo = new GenericSqliteRepository<IPAddressHistory>(_databasePath);
+            using var repo = new GenericSqliteRepository<IPAddressHistory>(DatabasePath);
             string dateFilter = $"LastConnectionTime >= '{fromDate:yyyy-MM-dd HH:mm:ss}' AND LastConnectionTime <= '{toDate:yyyy-MM-dd HH:mm:ss}'";
             return await repo.CountAsync(dateFilter);
         }
 
         public async Task<long> GetUniquePortsCountAsync(DateTime fromDate, DateTime toDate)
         {
-            using var repo = new GenericSqliteRepository<PortHistory>(_databasePath);
+            using var repo = new GenericSqliteRepository<PortHistory>(DatabasePath);
             string dateFilter = $"LastConnectionTime >= '{fromDate:yyyy-MM-dd HH:mm:ss}' AND LastConnectionTime <= '{toDate:yyyy-MM-dd HH:mm:ss}'";
             return await repo.CountAsync(dateFilter);
         }
 
     public async Task<long> GetBlacklistedIPsCountAsync(DateTime fromDate, DateTime toDate)
     {
-        using var repo = new GenericSqliteRepository<IPAddressHistory>(_databasePath);
+        using var repo = new GenericSqliteRepository<IPAddressHistory>(DatabasePath);
         string dateFilter = $"IsBlacklisted = 1 AND LastConnectionTime >= '{fromDate:yyyy-MM-dd HH:mm:ss}' AND LastConnectionTime <= '{toDate:yyyy-MM-dd HH:mm:ss}'";
         return await repo.CountAsync(dateFilter);
     }
 
     public async Task<PagedResult<Connection>> GetConnectionsPagedAsync(DateTime fromDate, DateTime toDate, int page, int pageSize, ConnectionFilter? filter = null)
     {
-        var dataLayer = new SqlLiteDataLayer(_databasePath);
+        var dataLayer = new SqlLiteDataLayer(DatabasePath);
         using var connection = await dataLayer.GetOpenConnection();
 
         var whereClause = GetDateFilter(fromDate, toDate);
@@ -173,7 +175,7 @@ public class DashboardDataService : IDashboardDataService
 
     public async Task<List<ConnectionData>> GetConnectionDataAsync(string sessionId)
     {
-        using var repo = new GenericSqliteRepository<ConnectionData>(_databasePath);
+        using var repo = new GenericSqliteRepository<ConnectionData>(DatabasePath);
 
         var connectionData = await repo.SelectDataByExpressionAsync(
             fieldName: "SessionId",
@@ -186,7 +188,7 @@ public class DashboardDataService : IDashboardDataService
 
     public async Task<IPDetails> GetIPDetailsAsync(string ipAddress)
     {
-        var dataLayer = new SqlLiteDataLayer(_databasePath);
+        var dataLayer = new SqlLiteDataLayer(DatabasePath);
         using var connection = await dataLayer.GetOpenConnection();
 
         string sql = """
@@ -229,7 +231,7 @@ public class DashboardDataService : IDashboardDataService
 
     public async Task<List<CountryConnectionCount>> GetConnectionCountsByCountryAsync(DateTime fromDate, DateTime toDate)
     {
-        var dataLayer = new SqlLiteDataLayer(_databasePath);
+        var dataLayer = new SqlLiteDataLayer(DatabasePath);
         using var connection = await dataLayer.GetOpenConnection();
 
         string sql = """
@@ -266,7 +268,7 @@ public class DashboardDataService : IDashboardDataService
 
     public async Task<TopConnectionInfo?> GetTopConnectionAsync(DateTime fromDate, DateTime toDate)
     {
-        var dataLayer = new SqlLiteDataLayer(_databasePath);
+        var dataLayer = new SqlLiteDataLayer(DatabasePath);
         using var connection = await dataLayer.GetOpenConnection();
 
         string sql = """
