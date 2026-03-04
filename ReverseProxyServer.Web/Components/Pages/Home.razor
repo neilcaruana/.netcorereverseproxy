@@ -375,8 +375,11 @@
                         {
                             var isExpanded = _expandedSessions.ContainsKey(conn.SessionId);
                             var hasData = _pagedConnections.SessionsWithData.Contains(conn.SessionId);
-                            var popoverDirection = rowIndex >= _pagedConnections.Items.Count - 3 ? "popover-above" : "popover-below";
                             rowIndex++;
+                            var rid = rowIndex;
+                            var ipAnchor = "ip-" + rid;
+                            var rpAnchor = "rp-" + rid;
+                            var lpAnchor = "lp-" + rid;
                             <tr class="@(isExpanded ? "table-active" : "")" @onclick="() => ToggleRowExpand(conn.SessionId)" style="cursor: pointer;">
                                 <td class="text-center">
                                     @if (_loadingSessionId == conn.SessionId)
@@ -409,29 +412,29 @@
                                         <span class="badge bg-success"><i class="bi bi-arrow-right me-1"></i>Forward</span>
                                     }
                                 </td>
-                                <td><code role="button" class="text-primary" @onclick="(e) => ShowIPDetailsAsync(conn.RemoteAddress, e)" @onclick:stopPropagation="true">@conn.RemoteAddress</code></td>
+                                <td><code id="@ipAnchor" role="button" class="text-primary" @onclick="() => ShowIPDetailsAsync(conn.RemoteAddress, ipAnchor)" @onclick:stopPropagation="true">@conn.RemoteAddress</code></td>
                                 <td class="text-center">
                                     @if (_pagedConnections.BlacklistedIPs.Contains(conn.RemoteAddress))
                                     {
                                         <span role="button" class="badge bg-danger-subtle text-danger border border-danger-subtle cursor-pointer" 
-                                              title="Blacklisted" @onclick="(e) => ShowIPDetailsAsync(conn.RemoteAddress, e)" @onclick:stopPropagation="true">🏴‍☠️ Blocked</span>
+                                              title="Blacklisted" @onclick="() => ShowIPDetailsAsync(conn.RemoteAddress, ipAnchor)" @onclick:stopPropagation="true">🏴‍☠️ Blocked</span>
                                     }
                                 </td>
                                 <td class="text-center">
                                     @if (_pagedConnections.CountryCodeMap.TryGetValue(conn.RemoteAddress, out var countryCode))
                                     {
                                         <span role="button" class="badge bg-light text-muted border cursor-pointer" title="@countryCode"
-                                              @onclick="(e) => ShowIPDetailsAsync(conn.RemoteAddress, e)" @onclick:stopPropagation="true">
+                                              @onclick="() => ShowIPDetailsAsync(conn.RemoteAddress, ipAnchor)" @onclick:stopPropagation="true">
                                             <img src="https://flagcdn.com/w20/@(countryCode.ToLowerInvariant()).png" 
                                                  width="14" height="10" alt="@countryCode" loading="lazy" />
                                             @countryCode
                                         </span>
                                     }
                                 </td>
-                                <td><code role="button" class="text-primary" @onclick="(e) => ShowPortDetailsAsync(conn.RemotePort, e)" @onclick:stopPropagation="true">@conn.RemotePort</code></td>
+                                <td><code id="@rpAnchor" role="button" class="text-primary" @onclick="() => ShowPortDetailsAsync(conn.RemotePort, rpAnchor)" @onclick:stopPropagation="true">@conn.RemotePort</code></td>
                                 <td class="text-center text-muted"><i class="bi bi-arrow-right"></i></td>
                                 <td><code>@conn.LocalAddress</code></td>
-                                <td><code role="button" class="text-primary" @onclick="(e) => ShowPortDetailsAsync(conn.LocalPort, e)" @onclick:stopPropagation="true">@conn.LocalPort</code></td>
+                                <td><code id="@lpAnchor" role="button" class="text-primary" @onclick="() => ShowPortDetailsAsync(conn.LocalPort, lpAnchor)" @onclick:stopPropagation="true">@conn.LocalPort</code></td>
                             </tr>
                             @if (isExpanded)
                             {
@@ -930,7 +933,7 @@
     private Dictionary<string, List<ConnectionData>?> _expandedSessions = new();
     private string? _loadingSessionId;
 
-    // Shared popover position (viewport coordinates from MouseEventArgs)
+    // Shared popover position (viewport coordinates from anchor element)
     private int _popoverX;
     private int _popoverY;
 
@@ -1302,7 +1305,7 @@
         _expandedSessions.Clear();
     }
 
-    private async Task ShowIPDetailsAsync(string ipAddress, MouseEventArgs e)
+    private async Task ShowIPDetailsAsync(string ipAddress, string anchorId)
     {
         ClosePortDetails();
 
@@ -1312,26 +1315,27 @@
             return;
         }
 
-        _popoverX = (int)e.ClientX;
-        _popoverY = (int)e.ClientY;
-        _selectedIP = ipAddress;
-        _selectedIPDetails = null;
-        _isLoadingIPDetails = true;
-        StateHasChanged();
+        var pos = await JS.InvokeAsync<int[]>("getElementPosition", anchorId);
+        if (pos is { Length: 2 })
+        {
+            _popoverY = pos[0];
+            _popoverX = pos[1];
+        }
 
+        IPDetails? details;
         try
         {
-            _selectedIPDetails = await DashboardService.GetIPDetailsAsync(ipAddress);
+            details = await DashboardService.GetIPDetailsAsync(ipAddress);
         }
         catch
         {
-            _selectedIPDetails = new IPDetails { IPAddress = ipAddress };
+            details = new IPDetails { IPAddress = ipAddress };
         }
-        finally
-        {
-            _isLoadingIPDetails = false;
-            StateHasChanged();
-        }
+
+        _selectedIP = ipAddress;
+        _selectedIPDetails = details;
+        _isLoadingIPDetails = false;
+        StateHasChanged();
     }
 
     private void CloseIPDetails()
@@ -1346,7 +1350,7 @@
         ClosePortDetails();
     }
 
-    private async Task ShowPortDetailsAsync(long port, MouseEventArgs e)
+    private async Task ShowPortDetailsAsync(long port, string anchorId)
     {
         CloseIPDetails();
 
@@ -1356,22 +1360,24 @@
             return;
         }
 
-        _popoverX = (int)e.ClientX;
-        _popoverY = (int)e.ClientY;
-        _selectedPort = port;
-        _selectedPortInfo = null;
-        _isLoadingPortDetails = true;
-        StateHasChanged();
+        var pos = await JS.InvokeAsync<int[]>("getElementPosition", anchorId);
+        if (pos is { Length: 2 })
+        {
+            _popoverY = pos[0];
+            _popoverX = pos[1];
+        }
 
+        PortInfo? info = null;
         try
         {
-            _selectedPortInfo = await PortLookup.GetPortInfoAsync(port);
+            info = await PortLookup.GetPortInfoAsync(port);
         }
-        finally
-        {
-            _isLoadingPortDetails = false;
-            StateHasChanged();
-        }
+        catch { }
+
+        _selectedPort = port;
+        _selectedPortInfo = info;
+        _isLoadingPortDetails = false;
+        StateHasChanged();
     }
 
     private void ClosePortDetails()
