@@ -14,7 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Resources\" />
+    <EmbeddedResource Include="Resources\service-names-port-numbers.csv" />
   </ItemGroup>
 
 </Project>

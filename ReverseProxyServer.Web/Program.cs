@@ -13,6 +13,9 @@ builder.Services.AddSignalR();
 // Register the dashboard data service
 builder.Services.AddScoped<IDashboardDataService, DashboardDataService>();
 
+// Register the port lookup service (singleton — loads IANA CSV once into memory)
+builder.Services.AddSingleton<PortLookupService>();
+
 // Configure database path from appsettings
 builder.Services.Configure<DatabaseSettings>(builder.Configuration.GetSection("Database"));
 
