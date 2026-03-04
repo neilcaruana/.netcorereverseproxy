@@ -1,0 +1,82 @@
+@using Microsoft.Extensions.Options
+@using ReverseProxyServer.Web.Services
+@inject IOptionsMonitor<DatabaseSettings> DatabaseSettings
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white py-2">
+        <h6 class="mb-0 fw-semibold">
+            <i class="bi bi-info-circle me-2"></i>About
+        </h6>
+    </div>
+    <div class="card-body py-3">
+        <div class="row g-3">
+            <div class="col-lg-8">
+                <h5 class="fw-bold mb-1">Reverse Proxy Server</h5>
+                <p class="text-muted small mb-3">
+                    A high-performance TCP reverse proxy and honeypot built in C# on <strong>.NET 10</strong>.
+                    Captures and logs all connection activity in real-time to SQLite.
+                </p>
+                <div class="row g-2" style="font-size:0.8rem;">
+                    <div class="col-md-6">
+                        <div class="d-flex align-items-start gap-2 mb-2">
+                            <i class="bi bi-arrow-right-circle text-success mt-1"></i>
+                            <div><strong>Forward Proxy</strong><br/><span class="text-muted">Relays TCP traffic to configured targets with full request/response capture</span></div>
+                        </div>
+                        <div class="d-flex align-items-start gap-2 mb-2">
+                            <i class="bi bi-bullseye text-warning mt-1"></i>
+                            <div><strong>Honeypot Mode</strong><br/><span class="text-muted">Captures attacker payloads on configurable port ranges</span></div>
+                        </div>
+                        <div class="d-flex align-items-start gap-2 mb-2">
+                            <i class="bi bi-radar text-danger mt-1"></i>
+                            <div><strong>Sentinel Mode</strong><br/><span class="text-muted">Listens on all 65K ports for maximum coverage</span></div>
+                        </div>
+                        <div class="d-flex align-items-start gap-2 mb-2">
+                            <i class="bi bi-shield-check text-primary mt-1"></i>
+                            <div><strong>AbuseIPDB Integration</strong><br/><span class="text-muted">Cross-references IPs and auto-blacklists threats</span></div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="d-flex align-items-start gap-2 mb-2">
+                            <i class="bi bi-speedometer2 text-info mt-1"></i>
+                            <div><strong>Real-time Dashboard</strong><br/><span class="text-muted">Blazor Server UI with SignalR live event streaming</span></div>
+                        </div>
+                        <div class="d-flex align-items-start gap-2 mb-2">
+                            <i class="bi bi-globe-americas text-primary mt-1"></i>
+                            <div><strong>World Heatmap</strong><br/><span class="text-muted">Geographic view of connection origins by country</span></div>
+                        </div>
+                        <div class="d-flex align-items-start gap-2 mb-2">
+                            <i class="bi bi-database text-secondary mt-1"></i>
+                            <div><strong>SQLite Storage</strong><br/><span class="text-muted">All connections, IP history, and abuse data persisted locally</span></div>
+                        </div>
+                        <div class="d-flex align-items-start gap-2 mb-2">
+                            <i class="bi bi-journal-text text-secondary mt-1"></i>
+                            <div><strong>Composite Logging</strong><br/><span class="text-muted">Console, file, and SignalR outputs simultaneously</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="card bg-light border-0">
+                    <div class="card-body py-2 px-3">
+                        <h6 class="fw-semibold mb-2" style="font-size:0.85rem;"><i class="bi bi-gear me-1"></i>Environment</h6>
+                        <table class="table table-sm table-borderless mb-2" style="font-size:0.75rem;">
+                            <tbody>
+                                <tr><td class="text-muted py-0">Database</td><td class="py-0"><code style="font-size:0.7rem; word-break:break-all;">@DatabaseSettings.CurrentValue.Path</code></td></tr>
+                                <tr><td class="text-muted py-0">Runtime</td><td class="py-0"><code style="font-size:0.7rem;">@System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription</code></td></tr>
+                                <tr><td class="text-muted py-0">OS</td><td class="py-0"><code style="font-size:0.7rem;">@Environment.OSVersion</code></td></tr>
+                            </tbody>
+                        </table>
+                        <hr class="my-2" />
+                        <h6 class="fw-semibold mb-2" style="font-size:0.85rem;"><i class="bi bi-github me-1"></i>Source Code</h6>
+                        <a href="https://github.com/neilcaruana/.netcorereverseproxy" target="_blank" class="btn btn-outline-dark btn-sm w-100 mb-1">
+                            <i class="bi bi-github me-1"></i>ReverseProxyServer
+                        </a>
+                        <a href="https://github.com/neilcaruana/Kavalan" target="_blank" class="btn btn-outline-dark btn-sm w-100">
+                            <i class="bi bi-github me-1"></i>Kavalan Libraries
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

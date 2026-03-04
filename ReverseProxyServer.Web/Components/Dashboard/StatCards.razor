@@ -1,0 +1,135 @@
+@using ReverseProxyServer.Web.Services
+
+<div class="row g-2 mb-1">
+    <!-- Total Connections -->
+    <div class="col-12 col-md-6 col-xl-3">
+        <div class="stat-card stat-card-primary">
+            <div class="stat-card-body">
+                <div class="stat-icon"><i class="bi bi-plug"></i></div>
+                <div class="stat-content">
+                    <h6 class="stat-label">Total Connections</h6>
+                    @if (ConnectionStats == null)
+                    {
+                        <div class="stat-value"><span class="spinner-border spinner-border-sm"></span></div>
+                        <div class="stat-subtitle">Loading...</div>
+                    }
+                    else
+                    {
+                        <div class="stat-value">@FormatNumber(ConnectionStats.TotalConnections)</div>
+                        <div class="stat-subtitle">
+                            <span class="text-success fw-semibold">@FormatNumber(ConnectionStats.ForwardConnections)</span> Forward ·
+                            <span class="text-warning fw-semibold">@FormatNumber(ConnectionStats.HoneypotConnections)</span> HoneyPot
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Source -->
+    <div class="col-12 col-md-6 col-xl-3">
+        <div class="stat-card stat-card-info">
+            <div class="stat-card-body">
+                <div class="stat-icon"><i class="bi bi-globe"></i></div>
+                <div class="stat-content">
+                    <h6 class="stat-label">Source</h6>
+                    @if (UniqueIPs == null || UniquePorts == null)
+                    {
+                        <div class="stat-value"><span class="spinner-border spinner-border-sm"></span></div>
+                        <div class="stat-subtitle">Loading...</div>
+                    }
+                    else
+                    {
+                        <div class="stat-value">@FormatNumber(UniqueIPs.Value)</div>
+                        <div class="stat-subtitle">
+                            Distinct IPs · <span class="fw-semibold">@FormatNumber(UniquePorts.Value)</span> Distinct Ports
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Blacklisted -->
+    <div class="col-12 col-md-6 col-xl-3">
+        <div class="stat-card stat-card-danger">
+            <div class="stat-card-body">
+                <div class="stat-icon"><i class="bi bi-shield-x"></i></div>
+                <div class="stat-content">
+                    <h6 class="stat-label">Blacklisted</h6>
+                    @if (BlacklistedIPs == null || UniqueIPs == null)
+                    {
+                        <div class="stat-value"><span class="spinner-border spinner-border-sm"></span></div>
+                        <div class="stat-subtitle">Loading...</div>
+                    }
+                    else
+                    {
+                        <div class="stat-value">@FormatNumber(BlacklistedIPs.Value)</div>
+                        <div class="stat-subtitle">
+                            @if (UniqueIPs.Value > 0)
+                            {
+                                @($"{(double)BlacklistedIPs.Value / UniqueIPs.Value:P1} of unique IPs")
+                            }
+                            else
+                            {
+                                @("Blocked addresses")
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Connection -->
+    <div class="col-12 col-md-6 col-xl-3">
+        <div class="stat-card stat-card-secondary">
+            <div class="stat-card-body">
+                <div class="stat-icon"><i class="bi bi-trophy"></i></div>
+                <div class="stat-content">
+                    <h6 class="stat-label">Top Connection</h6>
+                    @if (TopConnection == null && IsLoading)
+                    {
+                        <div class="stat-value"><span class="spinner-border spinner-border-sm"></span></div>
+                        <div class="stat-subtitle">Loading...</div>
+                    }
+                    else if (TopConnection != null)
+                    {
+                        <div class="stat-value" style="font-size: 0.95rem;">@TopConnection.IPAddress</div>
+                        <div class="stat-subtitle">
+                            <span class="fw-semibold">@FormatNumber(TopConnection.Hits)</span> hits
+                            @if (!string.IsNullOrEmpty(TopConnection.CountryCode))
+                            {
+                                @(" · ")
+                                <img src="https://flagcdn.com/w20/@(TopConnection.CountryCode.ToLowerInvariant()).png"
+                                     width="14" height="10" alt="@TopConnection.CountryCode" loading="lazy" class="me-1" />
+                                @TopConnection.CountryName
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="stat-value">—</div>
+                        <div class="stat-subtitle">No connections</div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public ConnectionStats? ConnectionStats { get; set; }
+    [Parameter] public long? UniqueIPs { get; set; }
+    [Parameter] public long? UniquePorts { get; set; }
+    [Parameter] public long? BlacklistedIPs { get; set; }
+    [Parameter] public TopConnectionInfo? TopConnection { get; set; }
+    [Parameter] public bool IsLoading { get; set; }
+
+    private static string FormatNumber(long number) => number switch
+    {
+        >= 1_000_000 => $"{number / 1_000_000.0:F1}M",
+        >= 1_000 => $"{number / 1_000.0:F1}K",
+        _ => number.ToString("N0")
+    };
+}

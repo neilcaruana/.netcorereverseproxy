@@ -1,0 +1,124 @@
+@using Kavalan.Logging
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white py-2">
+        <div class="d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 fw-semibold">
+                <i class="bi bi-broadcast me-2"></i>Realtime Event Feed
+                @if (IsConnected)
+                {
+                    <span class="badge bg-success ms-2" style="font-size: 0.6rem;">CONNECTED</span>
+                }
+                else
+                {
+                    <span class="badge bg-danger ms-2" style="font-size: 0.6rem;">DISCONNECTED</span>
+                }
+            </h6>
+            <div class="d-flex align-items-center gap-2">
+                <span class="text-muted small">@Events.Count events</span>
+                <button class="btn btn-outline-secondary btn-sm" @onclick="OnClear" title="Clear events">
+                    <i class="bi bi-trash"></i>
+                </button>
+                <button class="btn btn-outline-secondary btn-sm @(!AutoScroll ? "active" : "")" @onclick="OnTogglePause" title="Pause auto-scroll">
+                    <i class="bi bi-pause"></i> @(!AutoScroll ? "Paused" : "Pause")
+                </button>
+                <button class="btn btn-outline-secondary btn-sm @(_terminalView ? "active" : "")" @onclick="() => _terminalView = !_terminalView" title="Toggle terminal view">
+                    <i class="bi bi-terminal"></i> Terminal
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="card-body p-0" style="@(_terminalView ? "background:#1e1e1e;" : "")">
+        @if (Events.Count == 0)
+        {
+            <div class="text-center py-5 text-muted">
+                <i class="bi bi-broadcast display-4"></i>
+                <p class="mt-3 mb-0">Waiting for events from the reverse proxy server...</p>
+                <p class="small">Ensure the proxy is running with <code>DashboardUrl</code> configured.</p>
+            </div>
+        }
+        else if (_terminalView)
+        {
+            <div style="max-height:600px; overflow-y:auto; background:#1e1e1e; padding:0.5rem 0.75rem; font-family:'Cascadia Code','Fira Code','Consolas','Courier New',monospace; font-size:0.75rem; line-height:1.6;">
+                @foreach (var evt in Events.ToList())
+                {
+                    <div style="display:flex; padding:1px 4px; border-radius:2px; color:@GetTerminalColor(evt.Level);">
+                        <span style="flex-shrink:0; white-space:nowrap; color:#608b4e; margin-right:1.5em;">@evt.Timestamp.ToString("yyyy-MM-dd HH:mm:ss.fff")</span><span style="flex-shrink:0; white-space:nowrap; font-weight:bold; min-width:56px; margin-right:1.5em;">@evt.Level.ToString().ToUpperInvariant()</span><span style="flex-shrink:0; white-space:nowrap; color:#9cdcfe; margin-right:1.5em;">@(evt.CorrelationId ?? "—")</span><span style="flex:1; min-width:0; white-space:pre-wrap;">@evt.Message@if (!string.IsNullOrEmpty(evt.ExceptionMessage)){<span style="color:#f48771; margin-left:1.5em;">@evt.ExceptionMessage</span>}</span>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+                <table class="table table-sm table-hover mb-0 align-middle" style="font-size: 0.8rem;">
+                    <thead class="table-light sticky-top">
+                        <tr>
+                            <th style="width: 140px;">Time</th>
+                            <th style="width: 80px;">Level</th>
+                            <th style="width: 100px;">Session</th>
+                            <th>Message</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var evt in Events.ToList())
+                        {
+                            <tr class="@GetRowClass(evt.Level)">
+                                <td class="text-nowrap">
+                                    <span class="fw-medium">@evt.Timestamp.ToString("HH:mm:ss")</span><span class="text-muted">.@evt.Timestamp.ToString("fff")</span>
+                                </td>
+                                <td>
+                                    <span class="badge @GetBadgeClass(evt.Level)" style="font-size: 0.65rem;">@evt.Level</span>
+                                </td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(evt.CorrelationId))
+                                    {
+                                        <code class="text-muted" style="font-size: 0.7rem;">@evt.CorrelationId[..Math.Min(8, evt.CorrelationId.Length)]</code>
+                                    }
+                                </td>
+                                <td class="text-break" style="white-space:pre-wrap;">@evt.Message</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public List<LogEvent> Events { get; set; } = [];
+    [Parameter] public bool IsConnected { get; set; }
+    [Parameter] public bool AutoScroll { get; set; } = true;
+    [Parameter] public EventCallback OnClear { get; set; }
+    [Parameter] public EventCallback OnTogglePause { get; set; }
+
+    private bool _terminalView;
+
+    private static string GetBadgeClass(LogLevel level) => level switch
+    {
+        LogLevel.Error => "bg-danger",
+        LogLevel.Warning => "bg-warning text-dark",
+        LogLevel.Info => "bg-info text-dark",
+        LogLevel.Request => "bg-primary",
+        LogLevel.Debug => "bg-secondary",
+        _ => "bg-light text-dark"
+    };
+
+    private static string GetRowClass(LogLevel level) => level switch
+    {
+        LogLevel.Error => "table-danger",
+        LogLevel.Warning => "table-warning",
+        _ => ""
+    };
+
+    private static string GetTerminalColor(LogLevel level) => level switch
+    {
+        LogLevel.Error => "#f48771",
+        LogLevel.Warning => "#cca700",
+        LogLevel.Info => "#d4d4d4",
+        LogLevel.Request => "#4ec9b0",
+        LogLevel.Debug => "#808080",
+        _ => "#d4d4d4"
+    };
+}

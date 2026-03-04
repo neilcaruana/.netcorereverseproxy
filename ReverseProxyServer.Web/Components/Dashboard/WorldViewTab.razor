@@ -1,0 +1,65 @@
+@using ReverseProxyServer.Web.Services
+
+@* Uses CSS display to keep the Google Maps instance alive across tab switches *@
+<div style="display: @(Visible ? "block" : "none")">
+<div class="card shadow-sm">
+    <div class="card-header bg-white py-2">
+        <div class="d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 fw-semibold">
+                <i class="bi bi-globe-americas me-2"></i>World View
+            </h6>
+            <div class="d-flex align-items-center gap-2">
+                @if (IsLoading)
+                {
+                    <span class="spinner-border spinner-border-sm text-primary"></span>
+                    <span class="text-muted small">Loading heatmap...</span>
+                }
+                else if (CountryCounts != null)
+                {
+                    <span class="text-muted small">@CountryCounts.Count countries · @CountryCounts.Sum(c => c.ConnectionCount).ToString("N0") connections</span>
+                }
+                <div class="btn-group btn-group-sm">
+                    <button class="btn @(!DarkStyle ? "btn-primary" : "btn-outline-secondary")" @onclick="() => OnToggleStyle.InvokeAsync(false)" disabled="@(IsLoading || !DarkStyle)">
+                        <i class="bi bi-sun me-1"></i>Light
+                    </button>
+                    <button class="btn @(DarkStyle ? "btn-primary" : "btn-outline-secondary")" @onclick="() => OnToggleStyle.InvokeAsync(true)" disabled="@(IsLoading || DarkStyle)">
+                        <i class="bi bi-moon-stars me-1"></i>Dark
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="card-body p-0 position-relative">
+        @if (IsLoading)
+        {
+            <div class="position-absolute top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center" style="z-index:20; background:rgba(255,255,255,0.7);">
+                <div class="text-center">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <div class="text-muted small mt-2">Loading map...</div>
+                </div>
+            </div>
+        }
+        <div id="world-map" style="width:100%; height:520px;"></div>
+        @if (CountryCounts is { Count: > 0 })
+        {
+            <div class="position-absolute bottom-0 start-0 m-3 p-2 bg-white rounded shadow-sm border" style="z-index:10; font-size:0.7rem;">
+                <div class="fw-semibold mb-1">Connections by Country</div>
+                <div class="d-flex align-items-center gap-1">
+                    <span class="text-muted">Low</span>
+                    <div style="width:120px; height:10px; border-radius:3px; background:linear-gradient(to right, #ffffb2, #fecc5c, #fd8d3c, #f03b20, #bd0026);"></div>
+                    <span class="text-muted">High</span>
+                </div>
+                <div class="text-muted mt-1">@CountryCounts.Count countries</div>
+            </div>
+        }
+    </div>
+</div>
+</div>
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public bool IsLoading { get; set; }
+    [Parameter] public bool DarkStyle { get; set; } = true;
+    [Parameter] public List<CountryConnectionCount>? CountryCounts { get; set; }
+    [Parameter] public EventCallback<bool> OnToggleStyle { get; set; }
+}
