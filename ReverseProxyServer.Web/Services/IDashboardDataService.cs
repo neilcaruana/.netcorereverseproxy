@@ -22,6 +22,9 @@ public interface IDashboardDataService
     // World view - connection counts by country
     Task<List<CountryConnectionCount>> GetConnectionCountsByCountryAsync(DateTime fromDate, DateTime toDate);
 
+    // Distinct countries for filter dropdown
+    Task<List<CountryInfo>> GetDistinctCountriesAsync(DateTime fromDate, DateTime toDate);
+
     // Top connection by hits
     Task<TopConnectionInfo?> GetTopConnectionAsync(DateTime fromDate, DateTime toDate);
 }
@@ -101,4 +104,10 @@ public class TopConnectionInfo
     public long Hits { get; init; }
     public string? CountryCode { get; init; }
     public string? CountryName { get; init; }
+}
+
+public class CountryInfo
+{
+    public string CountryCode { get; init; } = string.Empty;
+    public string CountryName { get; init; } = string.Empty;
 }

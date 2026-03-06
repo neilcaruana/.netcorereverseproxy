@@ -134,8 +134,13 @@
                                 </select>
                             </td>
                             <td>
-                                <input type="text" class="form-control form-control-sm filter-input" placeholder="Filter..."
-                                       value="@Filter.CountryCode" @onchange="e => ApplyFilter(f => f.CountryCode = e.Value?.ToString())" />
+                                <select class="form-select form-select-sm filter-input" value="@Filter.CountryCode" @onchange="e => ApplyFilter(f => f.CountryCode = e.Value?.ToString())">
+                                    <option value="">All</option>
+                                    @foreach (var country in DistinctCountries)
+                                    {
+                                        <option value="@country.CountryCode">@country.CountryCode@(string.IsNullOrEmpty(country.CountryName) ? "" : $" - {country.CountryName}")</option>
+                                    }
+                                </select>
                             </td>
                             <td>
                                 <input type="text" class="form-control form-control-sm filter-input" placeholder="Filter..."
@@ -264,6 +269,12 @@
             <div class="text-center py-5 text-muted">
                 <i class="bi bi-inbox display-4"></i>
                 <p class="mt-3 mb-0">No connections found in the selected date range</p>
+                @if (Filter.HasAnyFilter)
+                {
+                    <button class="btn btn-outline-primary btn-sm mt-2" @onclick="ClearFilters">
+                        <i class="bi bi-x-circle me-1"></i>Clear filters
+                    </button>
+                }
             </div>
         }
     </div>
@@ -417,6 +428,7 @@
     [Parameter] public int CurrentPage { get; set; } = 1;
     [Parameter] public bool IsLoading { get; set; }
     [Parameter] public ConnectionFilter Filter { get; set; } = new();
+    [Parameter] public List<CountryInfo> DistinctCountries { get; set; } = [];
     [Parameter] public EventCallback<int> OnPageChanged { get; set; }
     [Parameter] public EventCallback<ConnectionFilter> OnFilterChanged { get; set; }
 

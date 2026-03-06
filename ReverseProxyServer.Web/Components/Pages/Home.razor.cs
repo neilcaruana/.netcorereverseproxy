@@ -42,6 +42,7 @@ public partial class Home : IAsyncDisposable
     private const int PageSize = 25;
     private ConnectionFilter _filter = new();
     private ConnectionLog? _connectionLogRef;
+    private List<CountryInfo> _distinctCountries = [];
 
     // Realtime
     private HubConnection? _hubConnection;
@@ -168,6 +169,10 @@ public partial class Home : IAsyncDisposable
                 _pagedConnections = await DashboardService.GetConnectionsPagedAsync(_fromDate, _toDate, _currentPage, PageSize, _filter);
                 _isLoadingConnections = false;
                 await InvokeAsync(StateHasChanged);
+            }),
+            LoadWithTimingAsync("DistinctCountries", async () =>
+            {
+                _distinctCountries = await DashboardService.GetDistinctCountriesAsync(_fromDate, _toDate);
             })
         };
 

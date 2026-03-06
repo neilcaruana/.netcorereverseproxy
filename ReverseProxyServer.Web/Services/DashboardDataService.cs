@@ -74,7 +74,7 @@ public class DashboardDataService : IDashboardDataService
             AddFilter(filter.RemotePort, "c.RemotePort = @RemotePort", "@RemotePort", v => v);
             AddFilter(filter.LocalAddress, "c.LocalAddress LIKE @LocalAddress", "@LocalAddress", v => $"%{v}%");
             AddFilter(filter.LocalPort, "c.LocalPort = @LocalPort", "@LocalPort", v => v);
-            AddFilter(filter.CountryCode, "c.RemoteAddress IN (SELECT IPAddress FROM AbuseIPDB_CheckedIPS WHERE CountryCode LIKE @CountryCode)", "@CountryCode", v => $"%{v}%");
+            AddFilter(filter.CountryCode, "c.RemoteAddress IN (SELECT IPAddress FROM AbuseIPDB_CheckedIPS WHERE CountryCode = @CountryCode)", "@CountryCode", v => v);
 
             if (!string.IsNullOrWhiteSpace(filter.IsBlacklisted))
             {
@@ -261,6 +261,37 @@ public class DashboardDataService : IDashboardDataService
                 CountryCode = reader.GetString(reader.GetOrdinal("CountryCode")),
                 CountryName = reader.IsDBNull(reader.GetOrdinal("CountryName")) ? string.Empty : reader.GetString(reader.GetOrdinal("CountryName")),
                 ConnectionCount = reader.GetInt64(reader.GetOrdinal("ConnectionCount"))
+            });
+        }
+        return results;
+    }
+
+    public async Task<List<CountryInfo>> GetDistinctCountriesAsync(DateTime fromDate, DateTime toDate)
+    {
+        var dataLayer = new SqlLiteDataLayer(DatabasePath);
+        using var connection = await dataLayer.GetOpenConnection();
+
+        string sql = """
+            SELECT DISTINCT abuse.CountryCode, abuse.CountryName
+            FROM Connections c
+            INNER JOIN AbuseIPDB_CheckedIPS abuse ON c.RemoteAddress = abuse.IPAddress
+            WHERE c.ConnectionTime >= @FromDate AND c.ConnectionTime <= @ToDate
+              AND abuse.CountryCode IS NOT NULL AND abuse.CountryCode != ''
+            ORDER BY abuse.CountryName, abuse.CountryCode
+            """;
+
+        using var cmd = new SqliteCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@FromDate", fromDate.ToString("yyyy-MM-dd HH:mm:ss"));
+        cmd.Parameters.AddWithValue("@ToDate", toDate.ToString("yyyy-MM-dd HH:mm:ss"));
+
+        var results = new List<CountryInfo>();
+        using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            results.Add(new CountryInfo
+            {
+                CountryCode = reader.GetString(reader.GetOrdinal("CountryCode")),
+                CountryName = reader.IsDBNull(reader.GetOrdinal("CountryName")) ? string.Empty : reader.GetString(reader.GetOrdinal("CountryName"))
             });
         }
         return results;
