@@ -134,13 +134,17 @@
                                 </select>
                             </td>
                             <td>
-                                <select class="form-select form-select-sm filter-input" value="@Filter.CountryCode" @onchange="e => ApplyFilter(f => f.CountryCode = e.Value?.ToString())">
-                                    <option value="">All</option>
-                                    @foreach (var country in DistinctCountries)
+                                <button id="country-filter-btn" class="form-select form-select-sm filter-input text-start text-truncate" type="button"
+                                        style="padding-right: 1.5rem;" @onclick="ToggleCountryPickerAsync" @onclick:stopPropagation="true">
+                                    @if (string.IsNullOrEmpty(Filter.CountryCode))
                                     {
-                                        <option value="@country.CountryCode">@country.CountryCode@(string.IsNullOrEmpty(country.CountryName) ? "" : $" - {country.CountryName}")</option>
+                                        <span class="text-muted">All</span>
                                     }
-                                </select>
+                                    else
+                                    {
+                                        @Filter.CountryCode
+                                    }
+                                </button>
                             </td>
                             <td>
                                 <input type="text" class="form-control form-control-sm filter-input" placeholder="Filter..."
@@ -279,6 +283,44 @@
         }
     </div>
 </div>
+
+<!-- Country Picker Popup -->
+@if (_showCountryPicker)
+{
+    <div class="details-popup-backdrop" @onclick="CloseCountryPicker"></div>
+    <div class="details-popup shadow-lg" tabindex="0" @ref="_countryPickerRef"
+         style="top:@(_countryPickerY)px; left:@(_countryPickerX)px; min-width: 220px; max-width: 280px; outline: none;"
+         @onclick:stopPropagation="true" @onkeydown="OnCountryKeyDown">
+        <div class="details-popup-header">
+            <span class="fw-semibold small"><i class="bi bi-globe me-1"></i>Filter by Country</span>
+            @if (!string.IsNullOrEmpty(_countrySearch))
+            {
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size: 0.65rem;">@_countrySearch</span>
+            }
+            <button class="btn btn-sm btn-close" @onclick="CloseCountryPicker"></button>
+        </div>
+        <div style="max-height: 280px; overflow-y: auto; font-size: 0.75rem;">
+            @if (!FilteredCountries.Any() && !string.IsNullOrEmpty(_countrySearch))
+            {
+                <div class="px-3 py-2 text-muted fst-italic">No matches</div>
+            }
+            else
+            {
+                <button class="dropdown-item px-3 py-1 @(string.IsNullOrEmpty(Filter.CountryCode) ? "active" : "")" @onclick="() => SelectCountry(string.Empty)">All</button>
+                <hr class="my-1" />
+                @foreach (var country in FilteredCountries)
+                {
+                    var cc = country.CountryCode;
+                    <button class="dropdown-item px-3 py-1 @(Filter.CountryCode == cc ? "active" : "")" @onclick="() => SelectCountry(cc)">
+                        <img src="https://flagcdn.com/w20/@(cc.ToLowerInvariant()).png" width="14" height="10" alt="@cc" loading="lazy" class="me-1" />
+                        @(string.IsNullOrEmpty(country.CountryName) ? cc : country.CountryName)
+                        <span class="text-muted ms-1">(@cc)</span>
+                    </button>
+                }
+            }
+        </div>
+    </div>
+}
 
 <!-- IP Details Popup -->
 @if (_selectedIP != null || _selectedPort != null)
@@ -442,6 +484,20 @@
     private string? _selectedIP;
     private IPDetails? _selectedIPDetails;
     private long? _selectedPort;
+
+    // Country picker state
+    private bool _showCountryPicker;
+    private int _countryPickerX;
+    private int _countryPickerY;
+    private string _countrySearch = string.Empty;
+    private ElementReference _countryPickerRef;
+    private CancellationTokenSource? _typeAheadCts;
+
+    private IEnumerable<CountryInfo> FilteredCountries => string.IsNullOrWhiteSpace(_countrySearch)
+        ? DistinctCountries
+        : DistinctCountries.Where(c =>
+            c.CountryCode.Contains(_countrySearch, StringComparison.OrdinalIgnoreCase) ||
+            c.CountryName.Contains(_countrySearch, StringComparison.OrdinalIgnoreCase));
     private PortInfo? _selectedPortInfo;
 
     private IEnumerable<int> GetPageNumbers()
@@ -554,9 +610,59 @@
         StateHasChanged();
     }
 
+    private async Task ToggleCountryPickerAsync()
+    {
+        if (_showCountryPicker) { CloseCountryPicker(); return; }
+
+        var pos = await JS.InvokeAsync<int[]>("getElementPosition", "country-filter-btn");
+        if (pos is { Length: 2 }) { _countryPickerY = pos[0]; _countryPickerX = pos[1]; }
+
+        _countrySearch = string.Empty;
+        _showCountryPicker = true;
+        StateHasChanged();
+        await Task.Yield();
+        await _countryPickerRef.FocusAsync();
+    }
+
+    private async Task OnCountryKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") { CloseCountryPicker(); return; }
+        if (e.Key == "Enter")
+        {
+            var match = FilteredCountries.FirstOrDefault();
+            await SelectCountry(match?.CountryCode ?? string.Empty);
+            return;
+        }
+        if (e.Key == "Backspace") { if (_countrySearch.Length > 0) _countrySearch = _countrySearch[..^1]; ResetTypeAheadTimer(); return; }
+        if (e.Key.Length != 1) return;
+
+        _countrySearch += e.Key;
+        ResetTypeAheadTimer();
+    }
+
+    private void ResetTypeAheadTimer()
+    {
+        _typeAheadCts?.Cancel();
+        _typeAheadCts = new CancellationTokenSource();
+        var token = _typeAheadCts.Token;
+        _ = Task.Delay(1000, token).ContinueWith(_ =>
+        {
+            _countrySearch = string.Empty;
+            InvokeAsync(StateHasChanged);
+        }, TaskContinuationOptions.OnlyOnRanToCompletion);
+    }
+
+    private async Task SelectCountry(string countryCode)
+    {
+        _showCountryPicker = false;
+        await ApplyFilter(f => f.CountryCode = countryCode);
+    }
+
+    private void CloseCountryPicker() => _showCountryPicker = false;
+
     private void CloseIPDetails() { _selectedIP = null; _selectedIPDetails = null; }
     private void ClosePortDetails() { _selectedPort = null; _selectedPortInfo = null; }
-    private void CloseAllPopups() { CloseIPDetails(); ClosePortDetails(); }
+    private void CloseAllPopups() { CloseIPDetails(); ClosePortDetails(); CloseCountryPicker(); }
 
     private static string GetAbuseConfidenceBadgeClass(long confidence) => confidence switch
     {

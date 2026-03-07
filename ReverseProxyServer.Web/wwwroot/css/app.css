@@ -178,7 +178,6 @@ main {
 .card {
     border: none;
     border-radius: 8px;
-    overflow: hidden;
 }
 
 .card-header {
