@@ -25,6 +25,9 @@ public interface IDashboardDataService
     // Distinct countries for filter dropdown
     Task<List<CountryInfo>> GetDistinctCountriesAsync(DateTime fromDate, DateTime toDate);
 
+    // Bandwidth stats
+    Task<BandwidthStats> GetBandwidthStatsAsync(DateTime fromDate, DateTime toDate);
+
     // Top connection by hits
     Task<TopConnectionInfo?> GetTopConnectionAsync(DateTime fromDate, DateTime toDate);
 }
@@ -110,4 +113,11 @@ public class CountryInfo
 {
     public string CountryCode { get; init; } = string.Empty;
     public string CountryName { get; init; } = string.Empty;
+}
+
+public class BandwidthStats
+{
+    public long IncomingBytes { get; init; }
+    public long OutgoingBytes { get; init; }
+    public long TotalBytes => IncomingBytes + OutgoingBytes;
 }

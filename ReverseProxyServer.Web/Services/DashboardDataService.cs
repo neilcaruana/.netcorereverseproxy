@@ -297,6 +297,42 @@ public class DashboardDataService : IDashboardDataService
         return results;
     }
 
+    public async Task<BandwidthStats> GetBandwidthStatsAsync(DateTime fromDate, DateTime toDate)
+    {
+        var dataLayer = new SqlLiteDataLayer(DatabasePath);
+        using var connection = await dataLayer.GetOpenConnection();
+
+        string sql = """
+            SELECT cd.CommunicationDirection,
+                   SUM(cd.DataSize) AS TotalBytes
+            FROM ConnectionsData cd
+            INNER JOIN Connections c ON cd.SessionId = c.SessionId
+            WHERE c.ConnectionTime >= @FromDate AND c.ConnectionTime <= @ToDate
+            GROUP BY cd.CommunicationDirection
+            """;
+
+        using var cmd = new SqliteCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@FromDate", fromDate.ToString("yyyy-MM-dd HH:mm:ss"));
+        cmd.Parameters.AddWithValue("@ToDate", toDate.ToString("yyyy-MM-dd HH:mm:ss"));
+
+        long incoming = 0;
+        long outgoing = 0;
+
+        using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var direction = reader.GetString(reader.GetOrdinal("CommunicationDirection"));
+            var bytes = reader.GetInt64(reader.GetOrdinal("TotalBytes"));
+
+            if (direction == "Incoming")
+                incoming = bytes;
+            else
+                outgoing = bytes;
+        }
+
+        return new BandwidthStats { IncomingBytes = incoming, OutgoingBytes = outgoing };
+    }
+
     public async Task<TopConnectionInfo?> GetTopConnectionAsync(DateTime fromDate, DateTime toDate)
     {
         var dataLayer = new SqlLiteDataLayer(DatabasePath);

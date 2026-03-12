@@ -2,7 +2,7 @@
 
 <div class="row g-2 mb-1">
     <!-- Total Connections -->
-    <div class="col-12 col-md-6 col-xl-3">
+    <div class="col-12 col-md-6 col-xl">
         <div class="stat-card stat-card-primary">
             <div class="stat-card-body">
                 <div class="stat-icon"><i class="bi bi-plug"></i></div>
@@ -27,7 +27,7 @@
     </div>
 
     <!-- Source -->
-    <div class="col-12 col-md-6 col-xl-3">
+    <div class="col-12 col-md-6 col-xl">
         <div class="stat-card stat-card-info">
             <div class="stat-card-body">
                 <div class="stat-icon"><i class="bi bi-globe"></i></div>
@@ -51,7 +51,7 @@
     </div>
 
     <!-- Blacklisted -->
-    <div class="col-12 col-md-6 col-xl-3">
+    <div class="col-12 col-md-6 col-xl">
         <div class="stat-card stat-card-danger">
             <div class="stat-card-body">
                 <div class="stat-icon"><i class="bi bi-shield-x"></i></div>
@@ -82,7 +82,7 @@
     </div>
 
     <!-- Top Connection -->
-    <div class="col-12 col-md-6 col-xl-3">
+    <div class="col-12 col-md-6 col-xl">
         <div class="stat-card stat-card-secondary">
             <div class="stat-card-body">
                 <div class="stat-icon"><i class="bi bi-trophy"></i></div>
@@ -116,6 +116,31 @@
             </div>
         </div>
     </div>
+
+    <!-- Bandwidth -->
+    <div class="col-12 col-md-6 col-xl">
+        <div class="stat-card stat-card-info">
+            <div class="stat-card-body">
+                <div class="stat-icon"><i class="bi bi-arrow-down-up"></i></div>
+                <div class="stat-content">
+                    <h6 class="stat-label">Bandwidth</h6>
+                    @if (BandwidthStats == null)
+                    {
+                        <div class="stat-value"><span class="spinner-border spinner-border-sm"></span></div>
+                        <div class="stat-subtitle">Loading...</div>
+                    }
+                    else
+                    {
+                        <div class="stat-value">@FormatBytes(BandwidthStats.TotalBytes)</div>
+                        <div class="stat-subtitle">
+                            <span class="text-primary fw-semibold"><i class="bi bi-arrow-down"></i> @FormatBytes(BandwidthStats.IncomingBytes)</span> In ·
+                            <span class="text-success fw-semibold"><i class="bi bi-arrow-up"></i> @FormatBytes(BandwidthStats.OutgoingBytes)</span> Out
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 @code {
@@ -124,6 +149,7 @@
     [Parameter] public long? UniquePorts { get; set; }
     [Parameter] public long? BlacklistedIPs { get; set; }
     [Parameter] public TopConnectionInfo? TopConnection { get; set; }
+    [Parameter] public BandwidthStats? BandwidthStats { get; set; }
     [Parameter] public bool IsLoading { get; set; }
 
     private static string FormatNumber(long number) => number switch
@@ -131,5 +157,13 @@
         >= 1_000_000 => $"{number / 1_000_000.0:F1}M",
         >= 1_000 => $"{number / 1_000.0:F1}K",
         _ => number.ToString("N0")
+    };
+
+    private static string FormatBytes(long bytes) => bytes switch
+    {
+        >= 1_073_741_824 => $"{bytes / 1_073_741_824.0:F1} GB",
+        >= 1_048_576 => $"{bytes / 1_048_576.0:F1} MB",
+        >= 1_024 => $"{bytes / 1_024.0:F1} KB",
+        _ => $"{bytes:N0} B"
     };
 }

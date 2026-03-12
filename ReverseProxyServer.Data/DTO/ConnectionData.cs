@@ -18,16 +18,19 @@ namespace ReverseProxyServer.Data.DTO
         public string? SessionId { get; set; }
         public string? CommunicationDirection { get; set; }
         public string? Data { get; set; }
+        public int DataSize { get; set; }
+
 
         public ConnectionData()
         {
 
         }
-        public ConnectionData(string sessionId, string communicationDirection, string data)
+        public ConnectionData(string sessionId, string communicationDirection, string data, int dataSize)
         {
             this.SessionId = sessionId;
             this.CommunicationDirection = communicationDirection;
             this.Data = data;
+            this.DataSize = dataSize;
         }
     }
 }

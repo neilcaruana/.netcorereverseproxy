@@ -305,7 +305,8 @@ namespace ReverseProxyServer
                 if (consoleManager != null)
                     await consoleManager.InsertNewConnectionData(new ConnectionData(e.SessionId,
                                                                                     e.CommunicationDirection,
-                                                                                    e.RawData.ToString()));
+                                                                                    e.RawData.ToString(),
+                                                                                    e.DataSize));
             }
             catch (Exception ex)
             {

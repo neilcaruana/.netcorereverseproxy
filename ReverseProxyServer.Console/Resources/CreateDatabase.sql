@@ -31,7 +31,8 @@ CREATE TABLE IF NOT EXISTS ConnectionsData (
     Id INTEGER PRIMARY KEY AUTOINCREMENT,
     SessionId TEXT NOT NULL,
     CommunicationDirection TEXT NOT NULL,
-    [Data] TEXT
+    [Data] TEXT,
+    DataSize INTEGER NOT NULL DEFAULT 0
 );
 
 -- Create the PortsHistory table

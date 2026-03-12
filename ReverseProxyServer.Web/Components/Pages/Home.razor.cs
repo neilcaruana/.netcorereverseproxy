@@ -35,6 +35,7 @@ public partial class Home : IAsyncDisposable
     private long? _uniquePorts;
     private long? _blacklistedIPs;
     private TopConnectionInfo? _topConnection;
+    private BandwidthStats? _bandwidthStats;
 
     // Connections
     private PagedResult<Data.DTO.Connection>? _pagedConnections;
@@ -127,6 +128,7 @@ public partial class Home : IAsyncDisposable
         _uniquePorts = null;
         _blacklistedIPs = null;
         _topConnection = null;
+        _bandwidthStats = null;
         _countryCounts = null;
         _mapInitialized = false;
         _isLoading = true;
@@ -162,6 +164,11 @@ public partial class Home : IAsyncDisposable
             LoadWithTimingAsync("TopConnection", async () =>
             {
                 _topConnection = await DashboardService.GetTopConnectionAsync(_fromDate, _toDate);
+                await InvokeAsync(StateHasChanged);
+            }),
+            LoadWithTimingAsync("Bandwidth", async () =>
+            {
+                _bandwidthStats = await DashboardService.GetBandwidthStatsAsync(_fromDate, _toDate);
                 await InvokeAsync(StateHasChanged);
             }),
             LoadWithTimingAsync("Connections", async () =>
