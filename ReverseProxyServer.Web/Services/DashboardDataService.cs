@@ -302,13 +302,15 @@ public class DashboardDataService : IDashboardDataService
         var dataLayer = new SqlLiteDataLayer(DatabasePath);
         using var connection = await dataLayer.GetOpenConnection();
 
+        // Single query: IN subquery avoids explicit JOIN, sum in C# avoids GROUP BY
+        // Covering index IX_ConnectionsData_Session_Direction_Size serves this entirely from the index
         string sql = """
-            SELECT cd.CommunicationDirection,
-                   SUM(cd.DataSize) AS TotalBytes
+            SELECT cd.CommunicationDirection, cd.DataSize
             FROM ConnectionsData cd
-            INNER JOIN Connections c ON cd.SessionId = c.SessionId
-            WHERE c.ConnectionTime >= @FromDate AND c.ConnectionTime <= @ToDate
-            GROUP BY cd.CommunicationDirection
+            WHERE cd.SessionId IN (
+                SELECT c.SessionId FROM Connections c
+                WHERE c.ConnectionTime >= @FromDate AND c.ConnectionTime <= @ToDate
+            )
             """;
 
         using var cmd = new SqliteCommand(sql, connection);
@@ -321,13 +323,10 @@ public class DashboardDataService : IDashboardDataService
         using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync())
         {
-            var direction = reader.GetString(reader.GetOrdinal("CommunicationDirection"));
-            var bytes = reader.GetInt64(reader.GetOrdinal("TotalBytes"));
-
-            if (direction == "Incoming")
-                incoming = bytes;
+            if (reader.GetString(0) == "Incoming")
+                incoming += reader.GetInt64(1);
             else
-                outgoing = bytes;
+                outgoing += reader.GetInt64(1);
         }
 
         return new BandwidthStats { IncomingBytes = incoming, OutgoingBytes = outgoing };

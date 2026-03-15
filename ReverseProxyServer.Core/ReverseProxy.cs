@@ -455,7 +455,7 @@ public class ReverseProxy : IDisposable
                         rawPacket = await ConvertMemoryStreamToString(rawDataPacket, cancellationToken);
                         string connectionInfo = ProxyHelper.GetConnectionInfo(connection, direction);
                         await OnNotification($"{direction} request size [{rawDataPacket.Length} bytes] from {connectionInfo}{Environment.NewLine}{rawPacket.ToString().Trim()}", connection.SessionId, LogLevel.Request);
-                        await OnNewConnectionData(new ConnectionDataEventArgs(connection.SessionId, direction.ToString(), rawPacket, (int)rawDataPacket.Length));
+                        await OnNewConnectionData(new ConnectionDataEventArgs(connection.SessionId, direction.ToString(), rawPacket, rawDataPacket.Length));
                     }
                     finally
                     {
@@ -618,7 +618,7 @@ public class ReverseProxy : IDisposable
                 rawPacket = await ConvertMemoryStreamToString(tempMemory, cancellationToken);
                 await OnNotification($"Connection dropped from {connectionInfo} logging raw data", connection.SessionId, LogLevel.Info);
                 await OnNotification($"Received data [{tempMemory.Length} bytes]{Environment.NewLine}{rawPacket.ToString().Trim()}", connection.SessionId, LogLevel.Request);
-                await OnNewConnectionData(new ConnectionDataEventArgs(connection.SessionId, "Incoming", rawPacket, (int)tempMemory.Length)); 
+                await OnNewConnectionData(new ConnectionDataEventArgs(connection.SessionId, "Incoming", rawPacket, tempMemory.Length)); 
             }
             else
                 await OnNotification($"Connection dropped. No data received from {connectionInfo}", connection.SessionId, LogLevel.Warning);

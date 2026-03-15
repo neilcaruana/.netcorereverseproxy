@@ -166,3 +166,7 @@ CREATE INDEX IF NOT EXISTS IX_IPAddressHistory_Blacklisted ON IPAddressHistory (
 CREATE INDEX IF NOT EXISTS IX_AbuseIPDB_CountryCode ON AbuseIPDB_CheckedIPS (
     CountryCode, IPAddress
 );
+
+CREATE INDEX IF NOT EXISTS IX_ConnectionsData_Session_Direction_Size ON ConnectionsData (
+    SessionId, CommunicationDirection, DataSize
+);
