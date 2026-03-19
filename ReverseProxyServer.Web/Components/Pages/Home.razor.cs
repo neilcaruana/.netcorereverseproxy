@@ -98,6 +98,28 @@ public partial class Home : IAsyncDisposable
         InvokeAsync(StateHasChanged);
     }
 
+    [JSInvokable]
+    public async Task OnCountryClickedFromMap(string countryCode)
+    {
+        await LogToConsoleAsync($"🗺️ OnCountryClickedFromMap CALLED with: '{countryCode}'");
+        await LogToConsoleAsync($"🗺️ Current _activeTab BEFORE: '{_activeTab}'");
+
+        _filter = new ConnectionFilter { CountryCode = countryCode };
+        _currentPage = 1;
+        _activeTab = "statistics";
+        _connectionLogRef?.ClearExpandedSessions();
+
+        await LogToConsoleAsync($"🗺️ _activeTab set to: '{_activeTab}', filter.CountryCode: '{_filter.CountryCode}'");
+
+        await InvokeAsync(StateHasChanged);
+
+        await LogToConsoleAsync("🗺️ StateHasChanged invoked, now loading connections...");
+
+        await LoadConnectionsPageAsync();
+
+        await LogToConsoleAsync($"🗺️ LoadConnectionsPageAsync complete. Page: {_currentPage}, Results: {_pagedConnections?.Items.Count ?? -1}");
+    }
+
     private async Task SwitchDatabaseAsync(string target)
     {
         var settings = DatabaseSettings.CurrentValue;
@@ -213,7 +235,7 @@ public partial class Home : IAsyncDisposable
     {
         var sw = Stopwatch.StartNew();
         _isLoadingConnections = true;
-        StateHasChanged();
+        await InvokeAsync(StateHasChanged);
         await Task.Yield();
 
         try
@@ -229,7 +251,7 @@ public partial class Home : IAsyncDisposable
         finally
         {
             _isLoadingConnections = false;
-            StateHasChanged();
+            await InvokeAsync(StateHasChanged);
         }
     }
 
@@ -349,7 +371,14 @@ public partial class Home : IAsyncDisposable
 
         if (_mapInitialized)
         {
+            _isLoadingWorldView = true;
+            StateHasChanged();
+            await Task.Yield();
+
             try { await JS.InvokeVoidAsync("worldMap.resize"); } catch { }
+
+            _isLoadingWorldView = false;
+            StateHasChanged();
             return;
         }
 
@@ -384,7 +413,7 @@ public partial class Home : IAsyncDisposable
 
         for (var attempt = 0; attempt < 10; attempt++)
         {
-            var success = await JS.InvokeAsync<bool>("worldMap.init", MapElementId, MapId, DatasetId, colorScheme, countryData);
+            var success = await JS.InvokeAsync<bool>("worldMap.init", MapElementId, MapId, DatasetId, colorScheme, countryData, _dotNetRef);
             if (success) return true;
             await Task.Delay(300);
         }

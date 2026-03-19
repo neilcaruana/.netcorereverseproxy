@@ -26,61 +26,6 @@
         </div>
     </div>
 
-    <!-- Source -->
-    <div class="col-12 col-md-6 col-xl">
-        <div class="stat-card stat-card-info">
-            <div class="stat-card-body">
-                <div class="stat-icon"><i class="bi bi-globe"></i></div>
-                <div class="stat-content">
-                    <h6 class="stat-label">Source</h6>
-                    @if (UniqueIPs == null || UniquePorts == null)
-                    {
-                        <div class="stat-value"><span class="spinner-border spinner-border-sm"></span></div>
-                        <div class="stat-subtitle">Loading...</div>
-                    }
-                    else
-                    {
-                        <div class="stat-value">@FormatNumber(UniqueIPs.Value)</div>
-                        <div class="stat-subtitle">
-                            Distinct IPs · <span class="fw-semibold">@FormatNumber(UniquePorts.Value)</span> Distinct Ports
-                        </div>
-                    }
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Blacklisted -->
-    <div class="col-12 col-md-6 col-xl">
-        <div class="stat-card stat-card-danger">
-            <div class="stat-card-body">
-                <div class="stat-icon"><i class="bi bi-shield-x"></i></div>
-                <div class="stat-content">
-                    <h6 class="stat-label">Blacklisted</h6>
-                    @if (BlacklistedIPs == null || UniqueIPs == null)
-                    {
-                        <div class="stat-value"><span class="spinner-border spinner-border-sm"></span></div>
-                        <div class="stat-subtitle">Loading...</div>
-                    }
-                    else
-                    {
-                        <div class="stat-value">@FormatNumber(BlacklistedIPs.Value)</div>
-                        <div class="stat-subtitle">
-                            @if (UniqueIPs.Value > 0)
-                            {
-                                @($"{(double)BlacklistedIPs.Value / UniqueIPs.Value:P1} of unique IPs")
-                            }
-                            else
-                            {
-                                @("Blocked addresses")
-                            }
-                        </div>
-                    }
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Top Connection -->
     <div class="col-12 col-md-6 col-xl">
         <div class="stat-card stat-card-secondary">
@@ -135,6 +80,61 @@
                         <div class="stat-subtitle">
                             <span class="text-primary fw-semibold"><i class="bi bi-arrow-down"></i> @FormatBytes(BandwidthStats.IncomingBytes)</span> In ·
                             <span class="text-success fw-semibold"><i class="bi bi-arrow-up"></i> @FormatBytes(BandwidthStats.OutgoingBytes)</span> Out
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Source -->
+    <div class="col-12 col-md-6 col-xl">
+        <div class="stat-card stat-card-info">
+            <div class="stat-card-body">
+                <div class="stat-icon"><i class="bi bi-globe"></i></div>
+                <div class="stat-content">
+                    <h6 class="stat-label">Source</h6>
+                    @if (UniqueIPs == null || UniquePorts == null)
+                    {
+                        <div class="stat-value"><span class="spinner-border spinner-border-sm"></span></div>
+                        <div class="stat-subtitle">Loading...</div>
+                    }
+                    else
+                    {
+                        <div class="stat-value">@FormatNumber(UniqueIPs.Value)</div>
+                        <div class="stat-subtitle">
+                            Distinct IPs · <span class="fw-semibold">@FormatNumber(UniquePorts.Value)</span> Distinct Ports
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Blacklisted -->
+    <div class="col-12 col-md-6 col-xl">
+        <div class="stat-card stat-card-danger">
+            <div class="stat-card-body">
+                <div class="stat-icon"><i class="bi bi-shield-x"></i></div>
+                <div class="stat-content">
+                    <h6 class="stat-label">Blacklisted</h6>
+                    @if (BlacklistedIPs == null || UniqueIPs == null)
+                    {
+                        <div class="stat-value"><span class="spinner-border spinner-border-sm"></span></div>
+                        <div class="stat-subtitle">Loading...</div>
+                    }
+                    else
+                    {
+                        <div class="stat-value">@FormatNumber(BlacklistedIPs.Value)</div>
+                        <div class="stat-subtitle">
+                            @if (UniqueIPs.Value > 0)
+                            {
+                                @($"{(double)BlacklistedIPs.Value / UniqueIPs.Value:P1} of unique IPs")
+                            }
+                            else
+                            {
+                                @("Blocked addresses")
+                            }
                         </div>
                     }
                 </div>

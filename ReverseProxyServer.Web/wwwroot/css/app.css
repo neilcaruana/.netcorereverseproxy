@@ -17,6 +17,13 @@ html, body {
     z-index: 1;
 }
 
+/* Hide the default Google Maps dataset info window ("View on Google Maps") */
+#world-map .gm-style-iw-a,
+#world-map .gm-style-iw,
+#world-map .gm-style .gm-style-iw-tc {
+    display: none !important;
+}
+
 /* Date range picker */
 .date-range-picker input[type="datetime-local"] {
     font-size: 0.75rem;

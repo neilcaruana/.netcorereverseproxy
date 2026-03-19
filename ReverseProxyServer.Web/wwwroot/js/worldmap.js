@@ -3,8 +3,11 @@ window.worldMap = (() => {
 
     let _map = null;
     let _tooltip = null;
+    let _datasetId = null;
     let _datasetListener = null;
     let _mapListener = null;
+    let _dotNetRef = null;
+    let _hoveredCode = null;
     let _values = {};
     let _maxCount = 0;
     let _currentScheme = null;
@@ -13,6 +16,11 @@ window.worldMap = (() => {
     let _mouseY = 0;
     let _featureTime = 0;
     let _hideTimer = 0;
+    let _domClickHandler = null;
+    let _mouseDownPos = null;
+    let _mouseDownHandler = null;
+    let _mouseUpHandler = null;
+    let _lastClickTime = 0;
 
     const TOOLTIP_CSS = "position:fixed;pointer-events:none;z-index:9999;display:none;"
         + "background:#fff;border:1px solid #dee2e6;border-radius:0.375rem;"
@@ -53,14 +61,84 @@ window.worldMap = (() => {
         if (_mapListener) { google.maps.event.removeListener(_mapListener); _mapListener = null; }
     }
 
+    function setCursor(pointer) {
+        if (!_boundEl) return;
+        _boundEl.style.cursor = pointer ? "pointer" : "";
+    }
+
+    function navigateToCountry(code) {
+        console.log("[WorldView] navigateToCountry:", code, "dotNetRef:", !!_dotNetRef, "hasData:", code ? !!_values[code] : false);
+        if (!_dotNetRef || !code || !_values[code]) return;
+        console.log("[WorldView] ✅ Invoking .NET OnCountryClickedFromMap:", code);
+        _dotNetRef.invokeMethodAsync("OnCountryClickedFromMap", code)
+            .then(() => console.log("[WorldView] ✅ .NET call succeeded"))
+            .catch(err => console.error("[WorldView] ❌ .NET call FAILED:", err));
+    }
+
+    function handleDomClick(clientX, clientY) {
+        // Debounce: mouseup and click may both fire
+        const now = Date.now();
+        if (now - _lastClickTime < 300) return;
+        _lastClickTime = now;
+
+        console.log("[WorldView] 🖱️ Click. hoveredCode:", _hoveredCode, "dotNetRef:", !!_dotNetRef);
+        if (!_dotNetRef || !_hoveredCode || !_values[_hoveredCode]) return;
+
+        navigateToCountry(_hoveredCode);
+    }
+
+    function removeDomClickListeners() {
+        if (_boundEl) {
+            if (_mouseDownHandler) _boundEl.removeEventListener("mousedown", _mouseDownHandler, true);
+            if (_mouseUpHandler) _boundEl.removeEventListener("mouseup", _mouseUpHandler, true);
+            if (_domClickHandler) _boundEl.removeEventListener("click", _domClickHandler);
+        }
+    }
+
     function bindDomListeners(el) {
         if (_boundEl === el) return;
+        removeDomClickListeners();
+
         _boundEl = el;
+
+        // Track mousedown position to distinguish clicks from drags
+        _mouseDownHandler = (e) => {
+            if (e.button === 0) _mouseDownPos = { x: e.clientX, y: e.clientY };
+        };
+
+        _mouseUpHandler = (e) => {
+            if (e.button !== 0 || !_mouseDownPos) return;
+            const dx = e.clientX - _mouseDownPos.x;
+            const dy = e.clientY - _mouseDownPos.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            _mouseDownPos = null;
+
+            // Only treat as click if mouse didn't move more than 5px (not a drag)
+            if (dist <= 5) {
+                console.log("[WorldView] mousedown→mouseup click (dist=" + dist.toFixed(1) + "px)");
+                handleDomClick(e.clientX, e.clientY);
+            }
+        };
+
+        // Also keep a regular click handler as backup
+        _domClickHandler = (e) => {
+            console.log("[WorldView] 🖱️ Standard DOM click event fired");
+            handleDomClick(e.clientX, e.clientY);
+        };
+
+        // Use capture phase (true) for mousedown/mouseup so we see them before Google Maps
+        el.addEventListener("mousedown", _mouseDownHandler, true);
+        el.addEventListener("mouseup", _mouseUpHandler, true);
+        el.addEventListener("click", _domClickHandler);
         el.addEventListener("mousemove", (e) => { _mouseX = e.clientX; _mouseY = e.clientY; });
         el.addEventListener("mouseleave", () => {
             clearTimeout(_hideTimer);
             if (_tooltip) _tooltip.style.display = "none";
+            _hoveredCode = null;
+            setCursor(false);
         });
+
+        console.log("[WorldView] DOM mousedown/mouseup/click listeners attached (capture phase for mouse events)");
     }
 
     function attachDatasetListeners(datasetLayer) {
@@ -68,9 +146,11 @@ window.worldMap = (() => {
             clearTimeout(_hideTimer);
             _featureTime = Date.now();
             const attrs = e.features && e.features[0] ? e.features[0].datasetAttributes : null;
-            if (!attrs) { _tooltip.style.display = "none"; return; }
+            if (!attrs) { _tooltip.style.display = "none"; _hoveredCode = null; setCursor(false); return; }
             const code = attrs["ISO3166-1-Alpha-2"] ? attrs["ISO3166-1-Alpha-2"].toString().toUpperCase() : null;
             const count = code ? (_values[code] || 0) : 0;
+            _hoveredCode = (code && count) ? code : null;
+            setCursor(!!_hoveredCode);
             if (!count) { _tooltip.style.display = "none"; return; }
             const name = attrs["ADMIN"] || attrs["NAME"] || attrs["name"] || code || "Unknown";
             const flag = code
@@ -88,13 +168,20 @@ window.worldMap = (() => {
         _mapListener = _map.addListener("mousemove", () => {
             clearTimeout(_hideTimer);
             _hideTimer = setTimeout(() => {
-                if (Date.now() - _featureTime > 100) _tooltip.style.display = "none";
+                if (Date.now() - _featureTime > 100) {
+                    _tooltip.style.display = "none";
+                    _hoveredCode = null;
+                    setCursor(false);
+                }
             }, 120);
         });
     }
 
     return {
-        init(elementId, mapId, datasetId, colorScheme, countryData) {
+        init(elementId, mapId, datasetId, colorScheme, countryData, dotNetRef) {
+            console.log("[WorldView] init() dotNetRef:", !!dotNetRef);
+            _dotNetRef = dotNetRef || _dotNetRef;
+            _datasetId = datasetId;
             const el = document.getElementById(elementId);
             if (!el || !window.google || !google.maps) {
                 console.warn("[WorldView] Google Maps not ready yet.");
@@ -114,6 +201,9 @@ window.worldMap = (() => {
                 el.innerHTML = "";
                 _currentScheme = colorScheme;
                 _boundEl = null;
+                _domClickHandler = null;
+                _mouseDownHandler = null;
+                _mouseUpHandler = null;
                 _map = new google.maps.Map(el, {
                     center: { lat: 20, lng: 0 },
                     zoom: 2,
@@ -159,20 +249,52 @@ window.worldMap = (() => {
         },
 
         resize() {
-            if (!_map) return;
-            setTimeout(() => {
-                if (!_map) return;
-                const c = _map.getCenter();
-                google.maps.event.trigger(_map, "resize");
-                if (c) _map.setCenter(c);
-            }, 100);
+            if (!_map) return Promise.resolve();
+            _hoveredCode = null;
+            setCursor(false);
+            if (_tooltip) _tooltip.style.display = "none";
+
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    if (!_map) { resolve(); return; }
+                    const center = _map.getCenter();
+                    const zoom = _map.getZoom();
+                    google.maps.event.trigger(_map, "resize");
+                    if (center) _map.setCenter(center);
+
+                    // Fractional zoom nudge forces the dataset feature layer to
+                    // rebuild its hit-test geometry after display:none→block.
+                    _map.setZoom(zoom + 0.01);
+                    google.maps.event.addListenerOnce(_map, "idle", () => {
+                        if (!_map) { resolve(); return; }
+                        _map.setZoom(zoom);
+
+                        google.maps.event.addListenerOnce(_map, "idle", () => {
+                            if (!_map) { resolve(); return; }
+                            removeMapListeners();
+                            _hoveredCode = null;
+                            const dl = _datasetId ? _map.getDatasetFeatureLayer(_datasetId) : null;
+                            if (dl) attachDatasetListeners(dl);
+                            resolve();
+                        });
+                    });
+                }, 150);
+            });
         },
 
         dispose() {
             removeMapListeners();
+            removeDomClickListeners();
             if (_tooltip) { _tooltip.remove(); _tooltip = null; }
             _map = null;
             _boundEl = null;
+            _domClickHandler = null;
+            _mouseDownHandler = null;
+            _mouseUpHandler = null;
+            _mouseDownPos = null;
+            _dotNetRef = null;
+            _datasetId = null;
+            _hoveredCode = null;
             _values = {};
             _maxCount = 0;
             _currentScheme = null;
