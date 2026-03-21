@@ -24,6 +24,67 @@ html, body {
     display: none !important;
 }
 
+/* Sortable table headers */
+.sortable-header {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+    position: relative;
+    transition: background-color 0.15s ease;
+}
+
+.sortable-header:hover {
+    background-color: rgba(0, 0, 0, 0.04);
+}
+
+.sortable-header .sort-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+/* CSS-only chevron */
+.sortable-header .sort-icon {
+    display: inline-block;
+    width: 0.45rem;
+    height: 0.45rem;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+    flex-shrink: 0;
+    margin-top: -1px;
+}
+
+/* Inactive: hidden, show on hover */
+.sortable-header .sort-icon-inactive {
+    opacity: 0;
+    color: #9ca3af;
+    transform: rotate(45deg);
+}
+
+.sortable-header:hover .sort-icon-inactive {
+    opacity: 0.4;
+}
+
+/* Active descending: chevron pointing down */
+.sortable-header .sort-icon-desc {
+    opacity: 0.7;
+    color: #495057;
+    transform: rotate(45deg);
+}
+
+/* Active ascending: chevron pointing up */
+.sortable-header .sort-icon-asc {
+    opacity: 0.7;
+    color: #495057;
+    transform: rotate(-135deg);
+}
+
+/* Active column: soft gradient glow at bottom */
+.sortable-header.sort-active {
+    background-image: linear-gradient(to top, rgba(108, 117, 125, 0.08) 0%, transparent 60%);
+}
+
 /* Date range picker */
 .date-range-picker input[type="datetime-local"] {
     font-size: 0.75rem;

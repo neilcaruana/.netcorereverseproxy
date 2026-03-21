@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Options;
 using Microsoft.JSInterop;
+using ReverseProxyServer.Data.DTO;
 using ReverseProxyServer.Web.Components.Dashboard;
 using ReverseProxyServer.Web.Services;
 
@@ -270,6 +271,24 @@ public partial class Home : IAsyncDisposable
     private async Task HandleFilterChanged(ConnectionFilter filter)
     {
         _filter = filter;
+        _currentPage = 1;
+        _connectionLogRef?.ClearExpandedSessions();
+        await LoadConnectionsPageAsync();
+    }
+
+    private async Task HandleSortChanged(string column)
+    {
+        var currentColumn = _filter.SortColumn ?? nameof(Connection.ConnectionTime);
+
+        if (currentColumn == column)
+            _filter.SortDescending = !_filter.SortDescending;
+        else
+        {
+            _filter.SortColumn = column;
+            _filter.SortDescending = true;
+        }
+
+        _filter.SortColumn = column;
         _currentPage = 1;
         _connectionLogRef?.ClearExpandedSessions();
         await LoadConnectionsPageAsync();

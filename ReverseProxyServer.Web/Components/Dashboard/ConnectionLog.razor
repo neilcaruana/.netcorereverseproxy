@@ -92,17 +92,44 @@
                 <table class="table table-hover mb-0 align-middle">
                     <thead class="table-light">
                         <tr>
-                            <th style="width: 30px;"></th>
-                            <th>Time</th>
-                            <th>Session</th>
-                            <th>Type</th>
-                            <th>Remote IP</th>
-                            <th style="min-width: 90px; width: 90px;">Status</th>
-                            <th style="width: 70px;">Country</th>
-                            <th>Port</th>
-                            <th style="width: 30px;"></th>
-                            <th>Local Address</th>
-                            <th>Port</th>
+                            @{
+                                var columns = new (string Column, string Label, string? Style, bool Sortable)[]
+                                {
+                                    ("", "", "width: 30px;", false),
+                                    (nameof(Connection.ConnectionTime), "Time", null, true),
+                                    ("", "Session", null, false),
+                                    (nameof(Connection.ProxyType), "Type", null, true),
+                                    (nameof(Connection.RemoteAddress), "Remote IP", null, true),
+                                    ("", "Status", "min-width: 90px; width: 90px;", false),
+                                    ("", "Country", "width: 70px;", false),
+                                    (nameof(Connection.RemotePort), "Port", null, true),
+                                    ("", "", "width: 30px;", false),
+                                    (nameof(Connection.LocalAddress), "Local Address", null, true),
+                                    (nameof(Connection.LocalPort), "Port", null, true),
+                                };
+                            }
+                            @foreach (var (col, label, style, sortable) in columns)
+                            {
+                                var activeColumn = Filter.SortColumn ?? nameof(Connection.ConnectionTime);
+                                var isActive = sortable && activeColumn == col;
+
+                                if (sortable)
+                                {
+                                    <th class="sortable-header @(isActive ? "sort-active" : "")"
+                                        style="@style"
+                                        @onclick="() => OnSortChanged.InvokeAsync(col)"
+                                        title="Sort by @label">
+                                        <span class="sort-label">
+                                            @label
+                                            <span class="sort-icon @SortIcon(col)"></span>
+                                        </span>
+                                    </th>
+                                }
+                                else
+                                {
+                                    <th style="@style">@label</th>
+                                }
+                            }
                         </tr>
                         <tr class="filter-row">
                             <td>
@@ -473,6 +500,7 @@
     [Parameter] public List<CountryInfo> DistinctCountries { get; set; } = [];
     [Parameter] public EventCallback<int> OnPageChanged { get; set; }
     [Parameter] public EventCallback<ConnectionFilter> OnFilterChanged { get; set; }
+    [Parameter] public EventCallback<string> OnSortChanged { get; set; }
 
     private Dictionary<string, List<ConnectionData>?> _expandedSessions = new();
     private string? _loadingSessionId;
@@ -507,6 +535,17 @@
         int end = Math.Min(PagedConnections.TotalPages, CurrentPage + 2);
         for (int i = start; i <= end; i++)
             yield return i;
+    }
+
+    private string SortIcon(string column)
+    {
+        var activeColumn = Filter.SortColumn ?? nameof(Connection.ConnectionTime);
+        if (activeColumn != column)
+            return "sort-icon-inactive";
+
+        return (Filter.SortColumn is null || Filter.SortDescending)
+            ? "sort-icon-desc"
+            : "sort-icon-asc";
     }
 
     private async Task ApplyFilter(Action<ConnectionFilter> update)

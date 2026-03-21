@@ -55,6 +55,8 @@ public class ConnectionFilter
     public string? LocalPort { get; set; }
     public string? IsBlacklisted { get; set; }
     public string? CountryCode { get; set; }
+    public string? SortColumn { get; set; }
+    public bool SortDescending { get; set; } = true;
 
     public bool HasAnyFilter => !string.IsNullOrWhiteSpace(ProxyType) ||
                                 !string.IsNullOrWhiteSpace(RemoteAddress) ||

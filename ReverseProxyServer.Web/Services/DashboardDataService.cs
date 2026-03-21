@@ -20,6 +20,20 @@ public class DashboardDataService : IDashboardDataService
     private static string GetDateFilter(DateTime fromDate, DateTime toDate) =>
         $"ConnectionTime >= '{fromDate:yyyy-MM-dd HH:mm:ss}' AND ConnectionTime <= '{toDate:yyyy-MM-dd HH:mm:ss}'";
 
+    private static string GetOrderByClause(ConnectionFilter? filter)
+    {
+        var direction = filter?.SortDescending != false ? "DESC" : "ASC";
+        return filter?.SortColumn switch
+        {
+            "ConnectionTime" => $"c.ConnectionTime {direction}",
+            "ProxyType" => $"c.ProxyType {direction}, c.ConnectionTime DESC",
+            "RemoteAddress" => $"c.RemoteAddress {direction}, c.ConnectionTime DESC",
+            "RemotePort" => $"c.RemotePort {direction}, c.ConnectionTime DESC",
+            "LocalAddress" => $"c.LocalAddress {direction}, c.ConnectionTime DESC",
+            "LocalPort" => $"c.LocalPort {direction}, c.ConnectionTime DESC",
+            _ => "c.ConnectionTime DESC"
+        };
+    }
     public async Task<ConnectionStats> GetConnectionStatsAsync(DateTime fromDate, DateTime toDate)
     {
         using var repo = new GenericSqliteRepository<Connection>(DatabasePath);
@@ -67,6 +81,8 @@ public class DashboardDataService : IDashboardDataService
         var filterJoin = string.Empty;
         int offset = (page - 1) * pageSize;
 
+        var orderBy = GetOrderByClause(filter);
+
         if (filter != null)
         {
             AddFilter(filter.ProxyType, "c.ProxyType = @ProxyType", "@ProxyType", v => v);
@@ -98,10 +114,10 @@ public class DashboardDataService : IDashboardDataService
                 SELECT c.Id FROM Connections c
                 {filterJoin}
                 WHERE {whereClause}
-                ORDER BY c.ConnectionTime DESC
+                ORDER BY {orderBy}
                 LIMIT @PageSize OFFSET @Offset
             ) AS page ON c.Id = page.Id
-            ORDER BY c.ConnectionTime DESC
+            ORDER BY {orderBy}
             """;
 
         using var countCmd = new SqliteCommand($"SELECT COUNT(*) FROM Connections c {filterJoin} WHERE {whereClause}", connection);
