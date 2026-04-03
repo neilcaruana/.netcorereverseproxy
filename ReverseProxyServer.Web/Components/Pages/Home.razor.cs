@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Globalization;
 using Kavalan.Logging;
 using Microsoft.AspNetCore.Components;
@@ -156,9 +155,6 @@ public partial class Home : IAsyncDisposable
 
     private async Task LoadAllDataAsync(bool preserveState = false)
     {
-        var totalStopwatch = Stopwatch.StartNew();
-        await LogToConsoleAsync("⏱️ Starting dashboard data load...");
-
         _error = null;
         _connectionStats = null;
         _uniqueIPs = null;
@@ -182,43 +178,43 @@ public partial class Home : IAsyncDisposable
 
         var tasks = new List<Task>
         {
-            LoadWithTimingAsync("ConnectionStats", async () =>
+            RunAsync(async () =>
             {
                 _connectionStats = await DashboardService.GetConnectionStatsAsync(_fromDate, _toDate);
                 await InvokeAsync(StateHasChanged);
             }),
-            LoadWithTimingAsync("UniqueIPs", async () =>
+            RunAsync(async () =>
             {
                 _uniqueIPs = await DashboardService.GetUniqueIPsCountAsync(_fromDate, _toDate);
                 await InvokeAsync(StateHasChanged);
             }),
-            LoadWithTimingAsync("UniquePorts", async () =>
+            RunAsync(async () =>
             {
                 _uniquePorts = await DashboardService.GetUniquePortsCountAsync(_fromDate, _toDate);
                 await InvokeAsync(StateHasChanged);
             }),
-            LoadWithTimingAsync("BlacklistedIPs", async () =>
+            RunAsync(async () =>
             {
                 _blacklistedIPs = await DashboardService.GetBlacklistedIPsCountAsync(_fromDate, _toDate);
                 await InvokeAsync(StateHasChanged);
             }),
-            LoadWithTimingAsync("TopConnection", async () =>
+            RunAsync(async () =>
             {
                 _topConnection = await DashboardService.GetTopConnectionAsync(_fromDate, _toDate);
                 await InvokeAsync(StateHasChanged);
             }),
-            LoadWithTimingAsync("Bandwidth", async () =>
+            RunAsync(async () =>
             {
                 _bandwidthStats = await DashboardService.GetBandwidthStatsAsync(_fromDate, _toDate);
                 await InvokeAsync(StateHasChanged);
             }),
-            LoadWithTimingAsync("Connections", async () =>
+            RunAsync(async () =>
             {
                 _pagedConnections = await DashboardService.GetConnectionsPagedAsync(_fromDate, _toDate, _currentPage, PageSize, _filter);
                 _isLoadingConnections = false;
                 await InvokeAsync(StateHasChanged);
             }),
-            LoadWithTimingAsync("DistinctCountries", async () =>
+            RunAsync(async () =>
             {
                 _distinctCountries = await DashboardService.GetDistinctCountriesAsync(_fromDate, _toDate);
             })
@@ -227,32 +223,26 @@ public partial class Home : IAsyncDisposable
         await Task.WhenAll(tasks);
 
         _isLoading = false;
-        totalStopwatch.Stop();
-        await LogToConsoleAsync($"✅ Dashboard fully loaded in {totalStopwatch.ElapsedMilliseconds}ms");
         await InvokeAsync(StateHasChanged);
 
         if (_activeTab == "worldview")
             await ActivateWorldViewAsync();
     }
 
-    private async Task LoadWithTimingAsync(string name, Func<Task> action)
+    private async Task RunAsync(Func<Task> action)
     {
-        var sw = Stopwatch.StartNew();
         try
         {
             await Task.Run(action);
-            await LogToConsoleAsync($"📊 {name} loaded in {sw.ElapsedMilliseconds}ms");
         }
         catch (Exception ex)
         {
             _error ??= ex.Message;
-            await LogToConsoleAsync($"❌ {name} failed: {ex.Message}", true);
         }
     }
 
     private async Task LoadConnectionsPageAsync()
     {
-        var sw = Stopwatch.StartNew();
         _isLoadingConnections = true;
         await InvokeAsync(StateHasChanged);
         await Task.Yield();
@@ -260,12 +250,10 @@ public partial class Home : IAsyncDisposable
         try
         {
             _pagedConnections = await Task.Run(() => DashboardService.GetConnectionsPagedAsync(_fromDate, _toDate, _currentPage, PageSize, _filter));
-            await LogToConsoleAsync($"📋 Connections page {_currentPage} loaded in {sw.ElapsedMilliseconds}ms ({_pagedConnections.Items.Count} of {_pagedConnections.TotalCount} records)");
         }
         catch (Exception ex)
         {
             _error = ex.Message;
-            await LogToConsoleAsync($"❌ Connections failed: {ex.Message}", true);
         }
         finally
         {
@@ -352,7 +340,7 @@ public partial class Home : IAsyncDisposable
     {
         try
         {
-            _searchResults = await DashboardService.SearchConnectionDataAsync(_searchTerm, _fromDate, _toDate, _searchPage, SearchPageSize, _searchSortOrder);
+            _searchResults = await DashboardService.SearchConnectionDataAsync(_searchTerm, _searchPage, SearchPageSize, _searchSortOrder);
         }
         catch (Exception ex)
         {

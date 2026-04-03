@@ -31,8 +31,8 @@ public interface IDashboardDataService
     // Top connection by hits
     Task<TopConnectionInfo?> GetTopConnectionAsync(DateTime fromDate, DateTime toDate);
 
-    // Search connection data content
-    Task<PagedResult<SearchResult>> SearchConnectionDataAsync(string searchTerm, DateTime fromDate, DateTime toDate, int page, int pageSize, SearchSortOrder sortOrder = SearchSortOrder.Relevance);
+    // Search connection data content (searches across all data, no date filtering)
+    Task<PagedResult<SearchResult>> SearchConnectionDataAsync(string searchTerm, int page, int pageSize, SearchSortOrder sortOrder = SearchSortOrder.Relevance);
 
     // Lazy-load metadata for a single search result card
     Task<SearchResult?> GetSearchResultMetadataAsync(long connectionDataId);

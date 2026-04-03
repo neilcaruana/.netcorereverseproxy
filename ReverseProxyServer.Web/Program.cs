@@ -1,3 +1,4 @@
+using Microsoft.JSInterop;
 using ReverseProxyServer.Web.Components;
 using ReverseProxyServer.Web.Hubs;
 using ReverseProxyServer.Web.Services;
@@ -10,8 +11,12 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddSignalR();
 
-// Register the dashboard data service
-builder.Services.AddScoped<IDashboardDataService, DashboardDataService>();
+// Register the dashboard data service with logging decorator
+builder.Services.AddScoped<DashboardDataService>();
+builder.Services.AddScoped<IDashboardDataService>(sp =>
+    new LoggingDashboardDataService(
+        sp.GetRequiredService<DashboardDataService>(),
+        sp.GetRequiredService<IJSRuntime>()));
 
 // Register the port lookup service (singleton — loads IANA CSV once into memory)
 builder.Services.AddSingleton<PortLookupService>();

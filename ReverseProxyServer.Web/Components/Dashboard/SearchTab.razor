@@ -19,8 +19,39 @@
                     </select>
                     <span class="text-muted small text-nowrap">
                         @SearchResults.TotalCount.ToString("N0") results
-                        <span class="ms-1 opacity-75">(@(SearchResults.ElapsedMilliseconds)ms)</span>
+                        <span class="ms-1 opacity-75">(@((SearchResults.ElapsedMilliseconds / 1000.0).ToString("F2"))s)</span>
                     </span>
+                    @if (SearchResults.TotalPages > 1)
+                    {
+                        <ul class="pagination pagination-sm mb-0">
+                            <li class="page-item @(!SearchResults.HasPreviousPage ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => HandlePageChangeAsync(1)" disabled="@(!SearchResults.HasPreviousPage)">
+                                    <i class="bi bi-chevron-double-left"></i>
+                                </button>
+                            </li>
+                            <li class="page-item @(!SearchResults.HasPreviousPage ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => HandlePageChangeAsync(CurrentPage - 1)" disabled="@(!SearchResults.HasPreviousPage)">
+                                    <i class="bi bi-chevron-left"></i>
+                                </button>
+                            </li>
+                            @foreach (var pageNum in GetPageNumbers())
+                            {
+                                <li class="page-item @(pageNum == CurrentPage ? "active" : "")">
+                                    <button class="page-link" @onclick="() => HandlePageChangeAsync(pageNum)">@pageNum</button>
+                                </li>
+                            }
+                            <li class="page-item @(!SearchResults.HasNextPage ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => HandlePageChangeAsync(CurrentPage + 1)" disabled="@(!SearchResults.HasNextPage)">
+                                    <i class="bi bi-chevron-right"></i>
+                                </button>
+                            </li>
+                            <li class="page-item @(!SearchResults.HasNextPage ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => HandlePageChangeAsync(SearchResults.TotalPages)" disabled="@(!SearchResults.HasNextPage)">
+                                    <i class="bi bi-chevron-double-right"></i>
+                                </button>
+                            </li>
+                        </ul>
+                    }
                 </div>
             }
         </div>
@@ -49,7 +80,7 @@
                 </button>
             </div>
             <div class="form-text mt-1">
-                <i class="bi bi-info-circle me-1"></i>Searches the raw data content of all connection sessions within the selected date range
+                <i class="bi bi-info-circle me-1"></i>Searches the raw data content across all connection sessions
             </div>
         </div>
 
@@ -141,40 +172,6 @@
                     </div>
                 }
             </div>
-
-            @if (SearchResults.TotalPages > 1)
-            {
-                <div class="d-flex justify-content-center mt-3">
-                    <ul class="pagination pagination-sm mb-0">
-                        <li class="page-item @(!SearchResults.HasPreviousPage ? "disabled" : "")">
-                            <button class="page-link" @onclick="() => OnPageChanged.InvokeAsync(1)" disabled="@(!SearchResults.HasPreviousPage)">
-                                <i class="bi bi-chevron-double-left"></i>
-                            </button>
-                        </li>
-                        <li class="page-item @(!SearchResults.HasPreviousPage ? "disabled" : "")">
-                            <button class="page-link" @onclick="() => OnPageChanged.InvokeAsync(CurrentPage - 1)" disabled="@(!SearchResults.HasPreviousPage)">
-                                <i class="bi bi-chevron-left"></i>
-                            </button>
-                        </li>
-                        @foreach (var pageNum in GetPageNumbers())
-                        {
-                            <li class="page-item @(pageNum == CurrentPage ? "active" : "")">
-                                <button class="page-link" @onclick="() => OnPageChanged.InvokeAsync(pageNum)">@pageNum</button>
-                            </li>
-                        }
-                        <li class="page-item @(!SearchResults.HasNextPage ? "disabled" : "")">
-                            <button class="page-link" @onclick="() => OnPageChanged.InvokeAsync(CurrentPage + 1)" disabled="@(!SearchResults.HasNextPage)">
-                                <i class="bi bi-chevron-right"></i>
-                            </button>
-                        </li>
-                        <li class="page-item @(!SearchResults.HasNextPage ? "disabled" : "")">
-                            <button class="page-link" @onclick="() => OnPageChanged.InvokeAsync(SearchResults.TotalPages)" disabled="@(!SearchResults.HasNextPage)">
-                                <i class="bi bi-chevron-double-right"></i>
-                            </button>
-                        </li>
-                    </ul>
-                </div>
-            }
         }
     </div>
 </div>
@@ -315,6 +312,24 @@
         await OnSearch.InvokeAsync(string.Empty);
     }
 
+    private async Task HandlePageChangeAsync(int page)
+    {
+        if (page == CurrentPage) return;
+
+        _isSearching = true;
+        StateHasChanged();
+        await Task.Delay(1);
+
+        try
+        {
+            await OnPageChanged.InvokeAsync(page);
+        }
+        finally
+        {
+            _isSearching = false;
+        }
+    }
+
     private async Task OpenDetailAsync(SearchResult result)
     {
         _selectedResult = result;
@@ -338,7 +353,18 @@
         if (Enum.TryParse<SearchSortOrder>(e.Value?.ToString(), out var newSort) && newSort != _sortOrder)
         {
             _sortOrder = newSort;
-            await OnSortChanged.InvokeAsync(_sortOrder);
+            _isSearching = true;
+            StateHasChanged();
+            await Task.Delay(1);
+
+            try
+            {
+                await OnSortChanged.InvokeAsync(_sortOrder);
+            }
+            finally
+            {
+                _isSearching = false;
+            }
         }
     }
 

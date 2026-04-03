@@ -387,7 +387,7 @@ public class DashboardDataService : IDashboardDataService
         return null;
     }
 
-    public async Task<PagedResult<SearchResult>> SearchConnectionDataAsync(string searchTerm, DateTime fromDate, DateTime toDate, int page, int pageSize, SearchSortOrder sortOrder = SearchSortOrder.Relevance)
+    public async Task<PagedResult<SearchResult>> SearchConnectionDataAsync(string searchTerm, int page, int pageSize, SearchSortOrder sortOrder = SearchSortOrder.Relevance)
     {
         var sw = Stopwatch.StartNew();
         var dataLayer = new SqlLiteDataLayer(DatabasePath);
