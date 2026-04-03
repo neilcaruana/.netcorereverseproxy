@@ -72,6 +72,14 @@ CREATE TABLE IF NOT EXISTS AbuseIPDB_CheckedIPS (
     RowId INTEGER NULL UNIQUE
 );
 
+CREATE VIRTUAL TABLE IF NOT EXISTS ConnectionsDataFts
+USING fts5(
+    SessionId,
+    Data,
+    content='ConnectionsData',
+    content_rowid='Id'
+);
+
 --Triggers
 CREATE TRIGGER IF NOT EXISTS SetInstancesRowId
 AFTER INSERT ON Instances
@@ -116,6 +124,23 @@ BEGIN
     UPDATE AbuseIPDB_CheckedIPS
     SET RowId = (SELECT IFNULL(MAX(RowId), 0) + 1 FROM AbuseIPDB_CheckedIPS)
     WHERE IPAddress = NEW.IPAddress;
+END;
+
+CREATE TRIGGER IF NOT EXISTS ConnectionsData_AfterInsert AFTER INSERT ON ConnectionsData BEGIN
+  INSERT INTO ConnectionsDataFts(rowid, SessionId, Data)
+  VALUES (new.Id, new.SessionId, new.Data);
+END;
+
+CREATE TRIGGER IF NOT EXISTS ConnectionsData_AfterDelete AFTER DELETE ON ConnectionsData BEGIN
+  INSERT INTO ConnectionsDataFts(ConnectionsDataFts, rowid, SessionId, Data)
+  VALUES ('delete', old.Id, old.SessionId, old.Data);
+END;
+
+CREATE TRIGGER IF NOT EXISTS ConnectionsData_AfterUpdate AFTER UPDATE ON ConnectionsData BEGIN
+  INSERT INTO ConnectionsDataFts(ConnectionsDataFts, rowid, SessionId, Data)
+  VALUES ('delete', old.Id, old.SessionId, old.Data);
+  INSERT INTO ConnectionsDataFts(rowid, SessionId, Data)
+  VALUES (new.Id, new.SessionId, new.Data);
 END;
 
 --Indexes

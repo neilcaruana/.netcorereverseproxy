@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Kavalan.Data.Sqlite;
 using Kavalan.Data.Sqlite.Repositories;
 using Microsoft.Data.Sqlite;
@@ -385,4 +386,189 @@ public class DashboardDataService : IDashboardDataService
 
         return null;
     }
-}
+
+    public async Task<PagedResult<SearchResult>> SearchConnectionDataAsync(string searchTerm, DateTime fromDate, DateTime toDate, int page, int pageSize, SearchSortOrder sortOrder = SearchSortOrder.Relevance)
+    {
+        var sw = Stopwatch.StartNew();
+        var dataLayer = new SqlLiteDataLayer(DatabasePath);
+        using var connection = await dataLayer.GetOpenConnection();
+        var ftsQuery = EscapeFtsQuery(searchTerm);
+
+        string countSql = """
+            SELECT COUNT(*)
+            FROM ConnectionsDataFts
+            WHERE ConnectionsDataFts MATCH @SearchTerm
+            """;
+
+        using var countCmd = new SqliteCommand(countSql, connection);
+        countCmd.Parameters.AddWithValue("@SearchTerm", ftsQuery);
+        int totalCount = Convert.ToInt32(await countCmd.ExecuteScalarAsync());
+
+        string sql;
+        if (sortOrder == SearchSortOrder.Relevance)
+        {
+            sql = """
+                SELECT rowid, SessionId, Data,
+                       snippet(ConnectionsDataFts, 1, '\u00AB', '\u00BB', '\u2026', 48) AS Snippet,
+                       rank
+                FROM ConnectionsDataFts
+                WHERE ConnectionsDataFts MATCH @SearchTerm
+                ORDER BY rank
+                LIMIT @PageSize OFFSET @Offset
+                """;
+        }
+        else
+        {
+            var orderBy = sortOrder switch
+            {
+                SearchSortOrder.Newest => "c.ConnectionTime DESC",
+                SearchSortOrder.Oldest => "c.ConnectionTime ASC",
+                SearchSortOrder.Largest => "cd.DataSize DESC",
+                _ => "fts.rank"
+            };
+
+            sql = $"""
+                SELECT fts.rowid, fts.SessionId, fts.Data,
+                       snippet(ConnectionsDataFts, 1, '\u00AB', '\u00BB', '\u2026', 48) AS Snippet,
+                       fts.rank
+                FROM ConnectionsDataFts fts
+                INNER JOIN ConnectionsData cd ON fts.rowid = cd.Id
+                INNER JOIN Connections c ON cd.SessionId = c.SessionId
+                WHERE ConnectionsDataFts MATCH @SearchTerm
+                ORDER BY {orderBy}
+                LIMIT @PageSize OFFSET @Offset
+                """;
+        }
+
+        using var cmd = new SqliteCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@SearchTerm", ftsQuery);
+        cmd.Parameters.AddWithValue("@PageSize", pageSize);
+        cmd.Parameters.AddWithValue("@Offset", (page - 1) * pageSize);
+
+        var results = new List<SearchResult>();
+        using var reader = await cmd.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            results.Add(new SearchResult
+            {
+                Id = reader.GetInt64(reader.GetOrdinal("rowid")),
+                SessionId = reader.IsDBNull(reader.GetOrdinal("SessionId"))
+                    ? string.Empty
+                    : reader.GetString(reader.GetOrdinal("SessionId")),
+                Data = reader.IsDBNull(reader.GetOrdinal("Data"))
+                    ? string.Empty
+                    : reader.GetString(reader.GetOrdinal("Data")),
+                Snippet = reader.IsDBNull(reader.GetOrdinal("Snippet"))
+                    ? string.Empty
+                    : reader.GetString(reader.GetOrdinal("Snippet")),
+                RelevanceScore = reader.GetDouble(reader.GetOrdinal("rank"))
+            });
+        }
+
+        sw.Stop();
+
+        return new PagedResult<SearchResult>
+        {
+            Items = results,
+            TotalCount = totalCount,
+            Page = page,
+            PageSize = pageSize,
+            ElapsedMilliseconds = sw.ElapsedMilliseconds
+        };
+    }
+
+    private static string EscapeFtsQuery(string input)
+    {
+        var trimmed = input.Trim();
+
+        if (trimmed.StartsWith('"') && trimmed.EndsWith('"'))
+            return trimmed;
+
+        if (trimmed.Contains(" OR ", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.Contains(" NOT ", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.Contains(" NEAR(", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.Contains('*'))
+            return trimmed;
+
+        var escaped = trimmed.Replace("\"", "\"\"");
+        return $"\"{escaped}\"";
+    }
+
+    public async Task<string?> GetHighlightedDataAsync(long connectionDataId, string searchTerm)
+    {
+        var dataLayer = new SqlLiteDataLayer(DatabasePath);
+        using var connection = await dataLayer.GetOpenConnection();
+
+        string sql = """
+            SELECT highlight(ConnectionsDataFts, 1, '\u00AB', '\u00BB') AS Highlighted
+            FROM ConnectionsDataFts
+            WHERE rowid = @Id AND ConnectionsDataFts MATCH @SearchTerm
+            """;
+
+        using var cmd = new SqliteCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@Id", connectionDataId);
+        cmd.Parameters.AddWithValue("@SearchTerm", EscapeFtsQuery(searchTerm));
+
+        using var reader = await cmd.ExecuteReaderAsync();
+        if (await reader.ReadAsync())
+        {
+            return reader.IsDBNull(0) ? null : reader.GetString(0);
+        }
+
+        return null;
+    }
+
+    public async Task<SearchResult?> GetSearchResultMetadataAsync(long connectionDataId)
+    {
+        var dataLayer = new SqlLiteDataLayer(DatabasePath);
+        using var connection = await dataLayer.GetOpenConnection();
+
+        string sql = """
+            SELECT cd.CommunicationDirection, cd.DataSize,
+                   c.ConnectionTime, c.ProxyType, c.RemoteAddress, c.RemotePort,
+                   abuse.CountryCode, abuse.CountryName
+            FROM ConnectionsData cd
+            INNER JOIN Connections c ON cd.SessionId = c.SessionId
+            LEFT JOIN AbuseIPDB_CheckedIPS abuse ON c.RemoteAddress = abuse.IPAddress
+            WHERE cd.Id = @Id
+            LIMIT 1
+            """;
+
+        using var cmd = new SqliteCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@Id", connectionDataId);
+
+        using var reader = await cmd.ExecuteReaderAsync();
+        if (await reader.ReadAsync())
+        {
+            return new SearchResult
+            {
+                Id = connectionDataId,
+                MetadataLoaded = true,
+                CommunicationDirection = reader.IsDBNull(reader.GetOrdinal("CommunicationDirection"))
+                    ? string.Empty
+                    : reader.GetString(reader.GetOrdinal("CommunicationDirection")),
+                DataSize = reader.GetInt64(reader.GetOrdinal("DataSize")),
+                ConnectionTime = reader.IsDBNull(reader.GetOrdinal("ConnectionTime"))
+                    ? null
+                    : reader.GetDateTime(reader.GetOrdinal("ConnectionTime")),
+                ProxyType = reader.IsDBNull(reader.GetOrdinal("ProxyType"))
+                    ? string.Empty
+                    : reader.GetString(reader.GetOrdinal("ProxyType")),
+                RemoteAddress = reader.IsDBNull(reader.GetOrdinal("RemoteAddress"))
+                    ? string.Empty
+                    : reader.GetString(reader.GetOrdinal("RemoteAddress")),
+                RemotePort = reader.GetInt64(reader.GetOrdinal("RemotePort")),
+                CountryCode = reader.IsDBNull(reader.GetOrdinal("CountryCode"))
+                    ? null
+                    : reader.GetString(reader.GetOrdinal("CountryCode")),
+                CountryName = reader.IsDBNull(reader.GetOrdinal("CountryName"))
+                    ? null
+                    : reader.GetString(reader.GetOrdinal("CountryName"))
+            };
+        }
+
+        return null;
+    }
+
+    }

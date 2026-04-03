@@ -30,6 +30,15 @@ public interface IDashboardDataService
 
     // Top connection by hits
     Task<TopConnectionInfo?> GetTopConnectionAsync(DateTime fromDate, DateTime toDate);
+
+    // Search connection data content
+    Task<PagedResult<SearchResult>> SearchConnectionDataAsync(string searchTerm, DateTime fromDate, DateTime toDate, int page, int pageSize, SearchSortOrder sortOrder = SearchSortOrder.Relevance);
+
+    // Lazy-load metadata for a single search result card
+    Task<SearchResult?> GetSearchResultMetadataAsync(long connectionDataId);
+
+    // Get full highlighted data for expanded card
+    Task<string?> GetHighlightedDataAsync(long connectionDataId, string searchTerm);
 }
 
 public class CountryConnectionCount
@@ -73,6 +82,7 @@ public class PagedResult<T>
     public int TotalCount { get; set; }
     public int Page { get; set; }
     public int PageSize { get; set; }
+    public long ElapsedMilliseconds { get; set; }
     public HashSet<string> SessionsWithData { get; set; } = [];
     public HashSet<string> BlacklistedIPs { get; set; } = [];
     public Dictionary<string, string> CountryCodeMap { get; set; } = new();
@@ -122,4 +132,12 @@ public class BandwidthStats
     public long IncomingBytes { get; init; }
     public long OutgoingBytes { get; init; }
     public long TotalBytes => IncomingBytes + OutgoingBytes;
+}
+
+public enum SearchSortOrder
+{
+    Relevance,
+    Newest,
+    Oldest,
+    Largest
 }

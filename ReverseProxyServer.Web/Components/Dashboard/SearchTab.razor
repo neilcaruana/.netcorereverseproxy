@@ -1,0 +1,391 @@
+@using ReverseProxyServer.Web.Services
+@inject IJSRuntime JS
+@inject IDashboardDataService DashboardService
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white py-2">
+        <div class="d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 fw-semibold">
+                <i class="bi bi-search me-2"></i>Search Connection Data
+            </h6>
+            @if (SearchResults != null)
+            {
+                <div class="d-flex align-items-center gap-2">
+                    <select class="form-select form-select-sm search-sort-select" value="@_sortOrder" @onchange="HandleSortChanged">
+                        <option value="Relevance"><i class="bi bi-sort-down"></i>Relevance</option>
+                        <option value="Newest">Newest first</option>
+                        <option value="Oldest">Oldest first</option>
+                        <option value="Largest">Largest first</option>
+                    </select>
+                    <span class="text-muted small text-nowrap">
+                        @SearchResults.TotalCount.ToString("N0") results
+                        <span class="ms-1 opacity-75">(@(SearchResults.ElapsedMilliseconds)ms)</span>
+                    </span>
+                </div>
+            }
+        </div>
+    </div>
+    <div class="card-body p-3">
+        <div class="search-input-wrapper mb-3">
+            <div class="input-group">
+                <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                <input type="text" class="form-control"
+                       placeholder="Search connection data content..."
+                       value="@_searchInput"
+                       @oninput="HandleSearchInput"
+                       @onkeydown="HandleKeyDown" />
+                <button class="btn btn-outline-secondary @(string.IsNullOrWhiteSpace(_searchInput) ? "d-none" : "")" @onclick="ClearSearch" title="Clear">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+                <button class="btn btn-primary" @onclick="ExecuteSearchAsync" disabled="@(_isSearching || string.IsNullOrWhiteSpace(_searchInput))">
+                    @if (_isSearching)
+                    {
+                        <span class="spinner-border spinner-border-sm"></span>
+                    }
+                    else
+                    {
+                        <span>Search</span>
+                    }
+                </button>
+            </div>
+            <div class="form-text mt-1">
+                <i class="bi bi-info-circle me-1"></i>Searches the raw data content of all connection sessions within the selected date range
+            </div>
+        </div>
+
+        @if (_isSearching)
+        {
+            <div class="d-flex justify-content-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Searching...</span>
+                </div>
+            </div>
+        }
+        else if (_hasSearched && (SearchResults == null || SearchResults.Items.Count == 0))
+        {
+            <div class="text-center py-5 text-muted">
+                <i class="bi bi-search display-4"></i>
+                <p class="mt-3 mb-0">No results found for "<strong>@_lastSearchTerm</strong>"</p>
+            </div>
+        }
+        else if (SearchResults == null)
+        {
+            <div class="text-center py-5 text-muted">
+                <i class="bi bi-search display-4 opacity-25"></i>
+                <p class="mt-3 mb-0">Enter a search term to find matching connection data</p>
+            </div>
+        }
+        else
+        {
+            <div class="row row-cols-1 row-cols-md-2 row-cols-xl-4 g-2">
+                @foreach (var result in SearchResults.Items)
+                {
+                    var isCopied = _copiedId == result.Id;
+
+                    <div class="col">
+                        <div class="search-result-card">
+                            <div class="search-result-header">
+                                @if (result.MetadataLoaded)
+                                {
+                                    <div class="d-flex align-items-center gap-1 mb-1">
+                                        <i class="bi @(result.CommunicationDirection == "Incoming" ? "bi-arrow-down-left text-success" : "bi-arrow-up-right text-info")"
+                                           title="@result.CommunicationDirection"></i>
+                                        <span class="badge @(result.ProxyType == "Forward" ? "bg-primary" : "bg-warning text-dark")">@result.ProxyType</span>
+                                        @if (!string.IsNullOrEmpty(result.CountryCode))
+                                        {
+                                            <span class="badge bg-light text-dark border" title="@result.CountryName">
+                                                <img src="https://flagcdn.com/16x12/@(result.CountryCode.ToLowerInvariant()).png"
+                                                     width="16" height="12" alt="@result.CountryCode" class="me-1"
+                                                     onerror="this.style.display='none'" />@result.CountryCode
+                                            </span>
+                                        }
+                                        <span class="text-muted small ms-auto">@FormatSize(result.DataSize)</span>
+                                    </div>
+                                    <div class="d-flex align-items-center justify-content-between">
+                                        <span class="font-monospace small fw-semibold text-truncate" title="@result.RemoteAddress:@result.RemotePort">@result.RemoteAddress<span class="text-muted fw-normal">:@result.RemotePort</span></span>
+                                    </div>
+                                    <div class="text-muted" style="font-size: 0.7rem;">
+                                        <i class="bi bi-clock me-1"></i>@result.ConnectionTime?.ToString("yyyy-MM-dd HH:mm:ss")
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="d-flex align-items-center gap-1 mb-1">
+                                        <span class="placeholder-glow"><span class="placeholder col-2"></span></span>
+                                        <span class="placeholder-glow"><span class="placeholder col-3"></span></span>
+                                        <span class="placeholder-glow ms-auto"><span class="placeholder col-2"></span></span>
+                                    </div>
+                                    <div class="placeholder-glow"><span class="placeholder col-8"></span></div>
+                                    <div class="placeholder-glow" style="font-size: 0.7rem;"><span class="placeholder col-6"></span></div>
+                                }
+                            </div>
+                            <div class="search-result-body">
+                                @if (!string.IsNullOrEmpty(result.Snippet))
+                                {
+                                    <div class="search-result-snippet">@FormatSnippet(result.Snippet)</div>
+                                }
+                                else
+                                {
+                                    <pre class="search-result-data">@result.Data</pre>
+                                }
+                            </div>
+                            <div class="search-result-actions">
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="() => OpenDetailAsync(result)" title="View full data">
+                                    <i class="bi bi-arrows-expand"></i>
+                                </button>
+                                <button class="btn btn-sm @(isCopied ? "btn-success" : "btn-outline-secondary")" @onclick="() => CopyDataAsync(result)" title="Copy to clipboard">
+                                    <i class="bi @(isCopied ? "bi-check-lg" : "bi-clipboard")"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            @if (SearchResults.TotalPages > 1)
+            {
+                <div class="d-flex justify-content-center mt-3">
+                    <ul class="pagination pagination-sm mb-0">
+                        <li class="page-item @(!SearchResults.HasPreviousPage ? "disabled" : "")">
+                            <button class="page-link" @onclick="() => OnPageChanged.InvokeAsync(1)" disabled="@(!SearchResults.HasPreviousPage)">
+                                <i class="bi bi-chevron-double-left"></i>
+                            </button>
+                        </li>
+                        <li class="page-item @(!SearchResults.HasPreviousPage ? "disabled" : "")">
+                            <button class="page-link" @onclick="() => OnPageChanged.InvokeAsync(CurrentPage - 1)" disabled="@(!SearchResults.HasPreviousPage)">
+                                <i class="bi bi-chevron-left"></i>
+                            </button>
+                        </li>
+                        @foreach (var pageNum in GetPageNumbers())
+                        {
+                            <li class="page-item @(pageNum == CurrentPage ? "active" : "")">
+                                <button class="page-link" @onclick="() => OnPageChanged.InvokeAsync(pageNum)">@pageNum</button>
+                            </li>
+                        }
+                        <li class="page-item @(!SearchResults.HasNextPage ? "disabled" : "")">
+                            <button class="page-link" @onclick="() => OnPageChanged.InvokeAsync(CurrentPage + 1)" disabled="@(!SearchResults.HasNextPage)">
+                                <i class="bi bi-chevron-right"></i>
+                            </button>
+                        </li>
+                        <li class="page-item @(!SearchResults.HasNextPage ? "disabled" : "")">
+                            <button class="page-link" @onclick="() => OnPageChanged.InvokeAsync(SearchResults.TotalPages)" disabled="@(!SearchResults.HasNextPage)">
+                                <i class="bi bi-chevron-double-right"></i>
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+            }
+        }
+    </div>
+</div>
+
+@if (_selectedResult != null)
+{
+    <div class="search-detail-backdrop" @onclick="CloseDetail"></div>
+    <div class="search-detail-modal">
+        <div class="search-detail-header">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-file-text"></i>
+                <span class="fw-semibold">Connection Data</span>
+                @if (_selectedResult.MetadataLoaded)
+                {
+                    <span class="text-muted small">@_selectedResult.RemoteAddress:@_selectedResult.RemotePort</span>
+                    <span class="text-muted small">@FormatSize(_selectedResult.DataSize)</span>
+                }
+            </div>
+            <div class="d-flex align-items-center gap-1">
+                <button class="btn btn-sm btn-outline-secondary" @onclick="() => CopyDataAsync(_selectedResult)" title="Copy to clipboard">
+                    <i class="bi @(_copiedId == _selectedResult.Id ? "bi-check-lg text-success" : "bi-clipboard")"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="CloseDetail" title="Close">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+        </div>
+        <div class="search-detail-body">
+            @if (_selectedResult.HighlightedData != null)
+            {
+                <pre class="search-result-data">@FormatHighlighted(_selectedResult.HighlightedData)</pre>
+            }
+            else
+            {
+                <div class="d-flex justify-content-center align-items-center py-5">
+                    <span class="spinner-border spinner-border-sm text-muted me-2"></span>
+                    <span class="text-muted small">Loading highlighted data...</span>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public PagedResult<SearchResult>? SearchResults { get; set; }
+    [Parameter] public int CurrentPage { get; set; } = 1;
+    [Parameter] public string SearchTerm { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> OnSearch { get; set; }
+    [Parameter] public EventCallback<int> OnPageChanged { get; set; }
+    [Parameter] public EventCallback<SearchSortOrder> OnSortChanged { get; set; }
+
+    private string _searchInput = string.Empty;
+    private string _lastSearchTerm = string.Empty;
+    private bool _isSearching;
+    private bool _hasSearched;
+    private long? _copiedId;
+    private PagedResult<SearchResult>? _previousResults;
+    private SearchResult? _selectedResult;
+    private SearchSortOrder _sortOrder = SearchSortOrder.Relevance;
+
+    protected override void OnParametersSet()
+    {
+        if (!_hasSearched && !string.IsNullOrWhiteSpace(SearchTerm))
+        {
+            _searchInput = SearchTerm;
+            _lastSearchTerm = SearchTerm;
+            _hasSearched = true;
+        }
+
+        if (SearchResults != null && SearchResults != _previousResults)
+        {
+            _previousResults = SearchResults;
+            _ = LoadMetadataForVisibleCardsAsync();
+        }
+    }
+
+    private async Task LoadMetadataForVisibleCardsAsync()
+    {
+        if (SearchResults == null) return;
+
+        var items = SearchResults.Items.Where(r => !r.MetadataLoaded).ToList();
+        var tasks = items.Select(async item =>
+        {
+            var metadata = await DashboardService.GetSearchResultMetadataAsync(item.Id);
+            if (metadata != null)
+            {
+                item.CommunicationDirection = metadata.CommunicationDirection;
+                item.DataSize = metadata.DataSize;
+                item.ConnectionTime = metadata.ConnectionTime;
+                item.ProxyType = metadata.ProxyType;
+                item.RemoteAddress = metadata.RemoteAddress;
+                item.RemotePort = metadata.RemotePort;
+                item.CountryCode = metadata.CountryCode;
+                item.CountryName = metadata.CountryName;
+                item.MetadataLoaded = true;
+                await InvokeAsync(StateHasChanged);
+            }
+        });
+
+        await Task.WhenAll(tasks);
+    }
+
+    private void HandleSearchInput(ChangeEventArgs e)
+    {
+        _searchInput = e.Value?.ToString() ?? string.Empty;
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(_searchInput))
+            await ExecuteSearchAsync();
+    }
+
+    private async Task ExecuteSearchAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_searchInput)) return;
+
+        _isSearching = true;
+        _lastSearchTerm = _searchInput.Trim();
+        _hasSearched = true;
+        StateHasChanged();
+        await Task.Delay(1);
+
+        try
+        {
+            await OnSearch.InvokeAsync(_lastSearchTerm);
+        }
+        finally
+        {
+            _isSearching = false;
+        }
+    }
+
+    private async Task ClearSearch()
+    {
+        _searchInput = string.Empty;
+        _hasSearched = false;
+        await OnSearch.InvokeAsync(string.Empty);
+    }
+
+    private async Task OpenDetailAsync(SearchResult result)
+    {
+        _selectedResult = result;
+        StateHasChanged();
+
+        if (result.HighlightedData == null && !string.IsNullOrWhiteSpace(SearchTerm))
+        {
+            var highlighted = await DashboardService.GetHighlightedDataAsync(result.Id, SearchTerm);
+            result.HighlightedData = highlighted ?? result.Data;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void CloseDetail()
+    {
+        _selectedResult = null;
+    }
+
+    private async Task HandleSortChanged(ChangeEventArgs e)
+    {
+        if (Enum.TryParse<SearchSortOrder>(e.Value?.ToString(), out var newSort) && newSort != _sortOrder)
+        {
+            _sortOrder = newSort;
+            await OnSortChanged.InvokeAsync(_sortOrder);
+        }
+    }
+
+    private async Task CopyDataAsync(SearchResult result)
+    {
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", result.Data);
+        _copiedId = result.Id;
+        StateHasChanged();
+
+        _ = Task.Delay(2000).ContinueWith(_ =>
+        {
+            _copiedId = null;
+            InvokeAsync(StateHasChanged);
+        });
+    }
+
+    private static MarkupString FormatSnippet(string snippet)
+    {
+        var escaped = System.Net.WebUtility.HtmlEncode(snippet);
+        var highlighted = escaped
+            .Replace("\u00AB", "<mark>")
+            .Replace("\u00BB", "</mark>");
+        return new MarkupString(highlighted);
+    }
+
+    private static MarkupString FormatHighlighted(string data)
+    {
+        var escaped = System.Net.WebUtility.HtmlEncode(data);
+        var highlighted = escaped
+            .Replace("\u00AB", "<mark>")
+            .Replace("\u00BB", "</mark>");
+        return new MarkupString(highlighted);
+    }
+
+    private static string FormatSize(long bytes) => bytes switch
+    {
+        < 1024 => $"{bytes} B",
+        < 1048576 => $"{bytes / 1024.0:F1} KB",
+        _ => $"{bytes / 1048576.0:F1} MB"
+    };
+
+    private IEnumerable<int> GetPageNumbers()
+    {
+        if (SearchResults == null) yield break;
+        int start = Math.Max(1, CurrentPage - 2);
+        int end = Math.Min(SearchResults.TotalPages, CurrentPage + 2);
+        for (int i = start; i <= end; i++)
+            yield return i;
+    }
+}

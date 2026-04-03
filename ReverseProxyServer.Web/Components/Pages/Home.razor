@@ -20,7 +20,7 @@
                 <input type="datetime-local" class="form-control" @bind="_fromDate" @bind:format="yyyy-MM-ddTHH:mm:ss" step="1" />
                 <span class="input-group-text bg-white text-muted" style="font-size:0.7rem;">To</span>
                 <input type="datetime-local" class="form-control" @bind="_toDate" @bind:format="yyyy-MM-ddTHH:mm:ss" step="1" />
-                <button class="btn btn-primary" @onclick="LoadAllDataAsync" disabled="@_isLoading">
+                <button class="btn btn-primary" @onclick="() => LoadAllDataAsync()" disabled="@_isLoading">
                     @if (_isLoading)
                     {
                         <span class="spinner-border spinner-border-sm"></span>
@@ -50,22 +50,27 @@
 <!-- Tabs -->
 <ul class="nav nav-tabs mb-2">
     <li class="nav-item">
-        <button class="nav-link @(_activeTab == "statistics" ? "active" : "")" @onclick='() => _activeTab = "statistics"'>
+        <button class="nav-link @(_activeTab == "statistics" ? "active" : "")" @onclick='() => SetTabAsync("statistics")'>
             <i class="bi bi-bar-chart me-1"></i>Statistics
         </button>
     </li>
     <li class="nav-item">
-        <button class="nav-link @(_activeTab == "realtime" ? "active" : "")" @onclick='() => _activeTab = "realtime"'>
+        <button class="nav-link @(_activeTab == "realtime" ? "active" : "")" @onclick='() => SetTabAsync("realtime")'>
             <i class="bi bi-broadcast me-1"></i>Realtime
         </button>
     </li>
     <li class="nav-item">
-        <button class="nav-link @(_activeTab == "worldview" ? "active" : "")" @onclick="ActivateWorldViewAsync">
+        <button class="nav-link @(_activeTab == "worldview" ? "active" : "")" @onclick='() => SetTabAsync("worldview")'>
             <i class="bi bi-globe-americas me-1"></i>World View
         </button>
     </li>
     <li class="nav-item">
-        <button class="nav-link @(_activeTab == "about" ? "active" : "")" @onclick='() => _activeTab = "about"'>
+        <button class="nav-link @(_activeTab == "search" ? "active" : "")" @onclick='() => SetTabAsync("search")'>
+            <i class="bi bi-search me-1"></i>Search
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link @(_activeTab == "about" ? "active" : "")" @onclick='() => SetTabAsync("about")'>
             <i class="bi bi-info-circle me-1"></i>About
         </button>
     </li>
@@ -115,6 +120,16 @@
               DarkStyle="_darkMapStyle"
               CountryCounts="_countryCounts"
               OnToggleStyle="ToggleMapStyleAsync" />
+
+@if (_activeTab == "search")
+{
+    <SearchTab SearchResults="_searchResults"
+               CurrentPage="_searchPage"
+               SearchTerm="@_searchTerm"
+               OnSearch="HandleSearchAsync"
+               OnPageChanged="HandleSearchPageChanged"
+               OnSortChanged="HandleSearchSortChanged" />
+}
 
 @if (_activeTab == "about")
 {

@@ -85,6 +85,136 @@ html, body {
     background-image: linear-gradient(to top, rgba(108, 117, 125, 0.08) 0%, transparent 60%);
 }
 
+/* Search tab */
+.search-result-card {
+    border: 1px solid #e9ecef;
+    border-left: 3px solid #dee2e6;
+    border-radius: 6px;
+    overflow: hidden;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    display: flex;
+    flex-direction: column;
+    height: 280px;
+}
+
+.search-result-card:hover {
+    border-color: #ced4da;
+    border-left-color: #adb5bd;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+.search-result-header {
+    background: #f8f9fa;
+    padding: 0.5rem 0.6rem;
+    border-bottom: 1px solid #e9ecef;
+    font-size: 0.78rem;
+    flex-shrink: 0;
+}
+
+.search-result-body {
+    padding: 0;
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+}
+
+.search-result-data {
+    margin: 0;
+    padding: 0.5rem 0.6rem;
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 0.7rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: #343a40;
+    background: #fff;
+}
+
+.search-result-actions {
+    display: flex;
+    gap: 0.35rem;
+    padding: 0.35rem 0.6rem;
+    border-top: 1px solid #e9ecef;
+    background: #fdfdfe;
+    flex-shrink: 0;
+}
+
+/* Search detail modal */
+.search-detail-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 1060;
+}
+
+.search-detail-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1065;
+    width: 90vw;
+    max-width: 900px;
+    max-height: 80vh;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.search-detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e9ecef;
+    font-size: 0.8rem;
+    flex-shrink: 0;
+}
+
+.search-detail-body {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+}
+
+.search-input-wrapper .form-control:focus {
+    box-shadow: none;
+    border-color: #86b7fe;
+}
+
+.search-sort-select {
+    width: auto;
+    font-size: 0.75rem;
+    padding: 0.15rem 1.8rem 0.15rem 0.4rem;
+}
+
+/* Search snippet (collapsed card preview) */
+.search-result-snippet {
+    padding: 0.5rem 0.6rem;
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 0.7rem;
+    line-height: 1.6;
+    word-break: break-all;
+    white-space: pre-wrap;
+    color: #6c757d;
+}
+
+/* Highlighted match markers in snippet and expanded view */
+.search-result-snippet mark,
+.search-result-data mark {
+    background-color: #fff3cd;
+    color: #343a40;
+    padding: 0.05em 0.2em;
+    border-radius: 2px;
+    font-weight: 600;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+}
+
 /* Date range picker */
 .date-range-picker input[type="datetime-local"] {
     font-size: 0.75rem;

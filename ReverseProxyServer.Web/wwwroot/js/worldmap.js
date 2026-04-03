@@ -298,6 +298,18 @@ window.worldMap = (() => {
             _values = {};
             _maxCount = 0;
             _currentScheme = null;
+        },
+
+        getState() {
+            if (!_map) return null;
+            const c = _map.getCenter();
+            return { zoom: _map.getZoom(), lat: c.lat(), lng: c.lng() };
+        },
+
+        setState(zoom, lat, lng) {
+            if (!_map) return;
+            _map.setCenter({ lat, lng });
+            _map.setZoom(zoom);
         }
     };
 })();

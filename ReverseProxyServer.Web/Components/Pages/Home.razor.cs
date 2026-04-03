@@ -1,7 +1,9 @@
 using System.Diagnostics;
+using System.Globalization;
 using Kavalan.Logging;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Options;
 using Microsoft.JSInterop;
 using ReverseProxyServer.Data.DTO;
@@ -62,6 +64,13 @@ public partial class Home : IAsyncDisposable
     private const string MapId = "eb64f89d349abcdbea900459";
     private const string DatasetId = "3695db17-21fc-48d4-94ea-bdc7218fe18b";
 
+    // Search
+    private PagedResult<SearchResult>? _searchResults;
+    private int _searchPage = 1;
+    private string _searchTerm = string.Empty;
+    private SearchSortOrder _searchSortOrder = SearchSortOrder.Relevance;
+    private const int SearchPageSize = 24;
+
     // Database switcher
     private bool _showDbSwitcher;
     private string _activeDb = "Release";
@@ -87,8 +96,12 @@ public partial class Home : IAsyncDisposable
                 window.__setDbSwitcherRef = (ref) => { window.__dbSwitcherRef = ref; };
                 """);
             await JS.InvokeVoidAsync("__setDbSwitcherRef", _dotNetRef);
+            ReadStateFromUrl();
             _ = StartHubConnectionAsync();
-            await LoadAllDataAsync();
+            await LoadAllDataAsync(preserveState: true);
+
+            if (_activeTab == "search" && !string.IsNullOrWhiteSpace(_searchTerm))
+                await LoadSearchResultsAsync();
         }
     }
 
@@ -119,6 +132,7 @@ public partial class Home : IAsyncDisposable
         await LoadConnectionsPageAsync();
 
         await LogToConsoleAsync($"🗺️ LoadConnectionsPageAsync complete. Page: {_currentPage}, Results: {_pagedConnections?.Items.Count ?? -1}");
+        await UpdateUrlAsync();
     }
 
     private async Task SwitchDatabaseAsync(string target)
@@ -140,7 +154,7 @@ public partial class Home : IAsyncDisposable
 
     // --- Data Loading ---
 
-    private async Task LoadAllDataAsync()
+    private async Task LoadAllDataAsync(bool preserveState = false)
     {
         var totalStopwatch = Stopwatch.StartNew();
         await LogToConsoleAsync("⏱️ Starting dashboard data load...");
@@ -156,9 +170,13 @@ public partial class Home : IAsyncDisposable
         _mapInitialized = false;
         _isLoading = true;
         _isLoadingConnections = true;
-        _currentPage = 1;
-        _connectionLogRef?.ClearExpandedSessions();
-        _filter = new();
+
+        if (!preserveState)
+        {
+            _currentPage = 1;
+            _connectionLogRef?.ClearExpandedSessions();
+            _filter = new();
+        }
 
         await InvokeAsync(StateHasChanged);
 
@@ -266,6 +284,7 @@ public partial class Home : IAsyncDisposable
         _currentPage = page;
         _connectionLogRef?.ClearExpandedSessions();
         await LoadConnectionsPageAsync();
+        await UpdateUrlAsync();
     }
 
     private async Task HandleFilterChanged(ConnectionFilter filter)
@@ -274,6 +293,7 @@ public partial class Home : IAsyncDisposable
         _currentPage = 1;
         _connectionLogRef?.ClearExpandedSessions();
         await LoadConnectionsPageAsync();
+        await UpdateUrlAsync();
     }
 
     private async Task HandleSortChanged(string column)
@@ -292,6 +312,54 @@ public partial class Home : IAsyncDisposable
         _currentPage = 1;
         _connectionLogRef?.ClearExpandedSessions();
         await LoadConnectionsPageAsync();
+        await UpdateUrlAsync();
+    }
+
+    // --- Search ---
+
+    private async Task HandleSearchAsync(string searchTerm)
+    {
+        _searchTerm = searchTerm;
+        _searchPage = 1;
+
+        if (string.IsNullOrWhiteSpace(searchTerm))
+        {
+            _searchResults = null;
+            await UpdateUrlAsync();
+            return;
+        }
+
+        await LoadSearchResultsAsync();
+        await UpdateUrlAsync();
+    }
+
+    private async Task HandleSearchPageChanged(int page)
+    {
+        _searchPage = page;
+        await LoadSearchResultsAsync();
+        await UpdateUrlAsync();
+    }
+
+    private async Task HandleSearchSortChanged(SearchSortOrder sortOrder)
+    {
+        _searchSortOrder = sortOrder;
+        _searchPage = 1;
+        await LoadSearchResultsAsync();
+        await UpdateUrlAsync();
+    }
+
+    private async Task LoadSearchResultsAsync()
+    {
+        try
+        {
+            _searchResults = await DashboardService.SearchConnectionDataAsync(_searchTerm, _fromDate, _toDate, _searchPage, SearchPageSize, _searchSortOrder);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Search failed: {ex.Message}";
+        }
+
+        await InvokeAsync(StateHasChanged);
     }
 
     // --- Quick Date Ranges ---
@@ -301,6 +369,7 @@ public partial class Home : IAsyncDisposable
         _fromDate = DateTime.Today;
         _toDate = DateTime.Today.AddDays(1).AddSeconds(-1);
         await LoadAllDataAsync();
+        await UpdateUrlAsync();
     }
 
     private async Task SetYesterday()
@@ -308,6 +377,7 @@ public partial class Home : IAsyncDisposable
         _fromDate = DateTime.Today.AddDays(-1);
         _toDate = DateTime.Today.AddSeconds(-1);
         await LoadAllDataAsync();
+        await UpdateUrlAsync();
     }
 
     private async Task SetThisWeek()
@@ -317,6 +387,7 @@ public partial class Home : IAsyncDisposable
         _fromDate = today.AddDays(-diff);
         _toDate = DateTime.Today.AddDays(1).AddSeconds(-1);
         await LoadAllDataAsync();
+        await UpdateUrlAsync();
     }
 
     private async Task SetThisMonth()
@@ -324,6 +395,7 @@ public partial class Home : IAsyncDisposable
         _fromDate = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
         _toDate = DateTime.Today.AddDays(1).AddSeconds(-1);
         await LoadAllDataAsync();
+        await UpdateUrlAsync();
     }
 
     private async Task SetThisYear()
@@ -331,6 +403,7 @@ public partial class Home : IAsyncDisposable
         _fromDate = new DateTime(DateTime.Today.Year, 1, 1);
         _toDate = DateTime.Today.AddDays(1).AddSeconds(-1);
         await LoadAllDataAsync();
+        await UpdateUrlAsync();
     }
 
     private async Task SetLastYear()
@@ -338,6 +411,7 @@ public partial class Home : IAsyncDisposable
         _fromDate = new DateTime(DateTime.Today.Year - 1, 1, 1);
         _toDate = new DateTime(DateTime.Today.Year - 1, 12, 31, 23, 59, 59);
         await LoadAllDataAsync();
+        await UpdateUrlAsync();
     }
 
     // --- SignalR ---
@@ -398,6 +472,7 @@ public partial class Home : IAsyncDisposable
 
             _isLoadingWorldView = false;
             StateHasChanged();
+            await UpdateUrlAsync();
             return;
         }
 
@@ -409,6 +484,14 @@ public partial class Home : IAsyncDisposable
         {
             _countryCounts ??= await Task.Run(() => DashboardService.GetConnectionCountsByCountryAsync(_fromDate, _toDate));
             _mapInitialized = await InitMapAsync();
+
+            if (_mapInitialized && _mapZoom.HasValue && _mapLat.HasValue && _mapLng.HasValue)
+            {
+                await JS.InvokeVoidAsync("worldMap.setState", _mapZoom.Value, _mapLat.Value, _mapLng.Value);
+                _mapZoom = null;
+                _mapLat = null;
+                _mapLng = null;
+            }
         }
         catch (Exception ex)
         {
@@ -419,6 +502,8 @@ public partial class Home : IAsyncDisposable
             _isLoadingWorldView = false;
             StateHasChanged();
         }
+
+        await UpdateUrlAsync();
     }
 
     private async Task<bool> InitMapAsync()
@@ -474,6 +559,128 @@ public partial class Home : IAsyncDisposable
             await JS.InvokeVoidAsync("eval", $"{jsMethod}('[{timestamp}] {message.Replace("'", "\\'")}')");
         }
         catch { }
+    }
+
+    // --- URL State ---
+
+    private void ReadStateFromUrl()
+    {
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        var query = QueryHelpers.ParseQuery(uri.Query);
+
+        if (query.TryGetValue("tab", out var tab))
+            _activeTab = tab.ToString();
+
+        if (query.TryGetValue("from", out var from) && DateTime.TryParse(from, CultureInfo.InvariantCulture, out var fromDate))
+            _fromDate = fromDate;
+        if (query.TryGetValue("to", out var to) && DateTime.TryParse(to, CultureInfo.InvariantCulture, out var toDate))
+            _toDate = toDate;
+
+        if (query.TryGetValue("page", out var page) && int.TryParse(page, out var p))
+            _currentPage = p;
+
+        if (query.TryGetValue("fType", out var fType)) _filter.ProxyType = fType;
+        if (query.TryGetValue("fAddr", out var fAddr)) _filter.RemoteAddress = fAddr;
+        if (query.TryGetValue("fPort", out var fPort)) _filter.RemotePort = fPort;
+        if (query.TryGetValue("fLAddr", out var fLAddr)) _filter.LocalAddress = fLAddr;
+        if (query.TryGetValue("fLPort", out var fLPort)) _filter.LocalPort = fLPort;
+        if (query.TryGetValue("fBl", out var fBl)) _filter.IsBlacklisted = fBl;
+        if (query.TryGetValue("fCountry", out var fCountry)) _filter.CountryCode = fCountry;
+        if (query.TryGetValue("sort", out var sort)) _filter.SortColumn = sort;
+        if (query.TryGetValue("sortDir", out var sortDir)) _filter.SortDescending = sortDir == "desc";
+
+        if (query.TryGetValue("q", out var q)) _searchTerm = q.ToString();
+        if (query.TryGetValue("sPage", out var sPage) && int.TryParse(sPage, out var sp)) _searchPage = sp;
+        if (query.TryGetValue("sSort", out var sSort) && Enum.TryParse<SearchSortOrder>(sSort, out var so)) _searchSortOrder = so;
+
+        if (query.TryGetValue("zoom", out var zoom)) _mapZoom = double.TryParse(zoom, CultureInfo.InvariantCulture, out var z) ? z : null;
+        if (query.TryGetValue("lat", out var lat)) _mapLat = double.TryParse(lat, CultureInfo.InvariantCulture, out var la) ? la : null;
+        if (query.TryGetValue("lng", out var lng)) _mapLng = double.TryParse(lng, CultureInfo.InvariantCulture, out var lo) ? lo : null;
+    }
+
+    private async Task UpdateUrlAsync()
+    {
+        var parameters = new Dictionary<string, string?>();
+
+        if (_activeTab != "statistics") parameters["tab"] = _activeTab;
+
+        var defaultFrom = DateTime.Today;
+        var defaultTo = DateTime.Today.AddDays(1).AddSeconds(-1);
+        if (_fromDate != defaultFrom) parameters["from"] = _fromDate.ToString("yyyy-MM-ddTHH:mm:ss");
+        if (_toDate != defaultTo) parameters["to"] = _toDate.ToString("yyyy-MM-ddTHH:mm:ss");
+
+        if (_activeTab == "statistics")
+        {
+            if (_currentPage > 1) parameters["page"] = _currentPage.ToString();
+            if (!string.IsNullOrWhiteSpace(_filter.ProxyType)) parameters["fType"] = _filter.ProxyType;
+            if (!string.IsNullOrWhiteSpace(_filter.RemoteAddress)) parameters["fAddr"] = _filter.RemoteAddress;
+            if (!string.IsNullOrWhiteSpace(_filter.RemotePort)) parameters["fPort"] = _filter.RemotePort;
+            if (!string.IsNullOrWhiteSpace(_filter.LocalAddress)) parameters["fLAddr"] = _filter.LocalAddress;
+            if (!string.IsNullOrWhiteSpace(_filter.LocalPort)) parameters["fLPort"] = _filter.LocalPort;
+            if (!string.IsNullOrWhiteSpace(_filter.IsBlacklisted)) parameters["fBl"] = _filter.IsBlacklisted;
+            if (!string.IsNullOrWhiteSpace(_filter.CountryCode)) parameters["fCountry"] = _filter.CountryCode;
+            if (!string.IsNullOrWhiteSpace(_filter.SortColumn)) parameters["sort"] = _filter.SortColumn;
+            if (_filter.SortColumn != null && !_filter.SortDescending) parameters["sortDir"] = "asc";
+        }
+
+        if (_activeTab == "search")
+        {
+            if (!string.IsNullOrWhiteSpace(_searchTerm)) parameters["q"] = _searchTerm;
+            if (_searchPage > 1) parameters["sPage"] = _searchPage.ToString();
+            if (_searchSortOrder != SearchSortOrder.Relevance) parameters["sSort"] = _searchSortOrder.ToString();
+        }
+
+        if (_activeTab == "worldview")
+        {
+            try
+            {
+                var state = await JS.InvokeAsync<MapState?>("worldMap.getState");
+                if (state != null)
+                {
+                    parameters["zoom"] = state.Zoom.ToString("F1", CultureInfo.InvariantCulture);
+                    parameters["lat"] = state.Lat.ToString("F4", CultureInfo.InvariantCulture);
+                    parameters["lng"] = state.Lng.ToString("F4", CultureInfo.InvariantCulture);
+                }
+            }
+            catch { }
+        }
+
+        var url = QueryHelpers.AddQueryString("/", parameters);
+        await JS.InvokeVoidAsync("eval", $"history.replaceState(null, '', '{url}')");
+    }
+
+    // Map state fields for URL restore
+    private double? _mapZoom;
+    private double? _mapLat;
+    private double? _mapLng;
+
+    private record MapState(double Zoom, double Lat, double Lng);
+
+    private async Task SetTabAsync(string tab)
+    {
+        if (_activeTab == tab) return;
+
+        if (_activeTab == "worldview")
+        {
+            try
+            {
+                var state = await JS.InvokeAsync<MapState?>("worldMap.getState");
+                if (state != null)
+                {
+                    _mapZoom = state.Zoom;
+                    _mapLat = state.Lat;
+                    _mapLng = state.Lng;
+                }
+            }
+            catch { }
+        }
+
+        _activeTab = tab;
+
+        if (tab == "worldview")
+            await ActivateWorldViewAsync();
+
+        await UpdateUrlAsync();
     }
 
     public async ValueTask DisposeAsync()
