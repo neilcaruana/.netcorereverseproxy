@@ -46,6 +46,10 @@ public class LoggingDashboardDataService(IDashboardDataService inner, IJSRuntime
         await LogCallAsync(() => inner.GetTopConnectionAsync(fromDate, toDate),
             result => result != null ? $"{result.IPAddress} ({result.Hits} hits)" : "none");
 
+    public async Task<long> GetTotalConnectionDataCountAsync() =>
+        await LogCallAsync(() => inner.GetTotalConnectionDataCountAsync(),
+            result => $"{result:N0} records");
+
     public async Task<PagedResult<SearchResult>> SearchConnectionDataAsync(string searchTerm, int page, int pageSize, SearchSortOrder sortOrder = SearchSortOrder.Relevance) =>
         await LogCallAsync(() => inner.SearchConnectionDataAsync(searchTerm, page, pageSize, sortOrder),
             result => $"{result.Items.Count} of {result.TotalCount} results, page {result.Page}");

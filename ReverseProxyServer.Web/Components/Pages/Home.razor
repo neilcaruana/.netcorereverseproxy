@@ -126,6 +126,8 @@
     <SearchTab SearchResults="_searchResults"
                CurrentPage="_searchPage"
                SearchTerm="@_searchTerm"
+               TotalRecords="_totalSearchableRecords"
+               FocusOnRender="true"
                OnSearch="HandleSearchAsync"
                OnPageChanged="HandleSearchPageChanged"
                OnSortChanged="HandleSearchSortChanged" />

@@ -387,6 +387,12 @@ public class DashboardDataService : IDashboardDataService
         return null;
     }
 
+    public async Task<long> GetTotalConnectionDataCountAsync()
+    {
+        using var repo = new GenericSqliteRepository<ConnectionData>(DatabasePath);
+        return await repo.CountAsync(string.Empty);
+    }
+
     public async Task<PagedResult<SearchResult>> SearchConnectionDataAsync(string searchTerm, int page, int pageSize, SearchSortOrder sortOrder = SearchSortOrder.Relevance)
     {
         var sw = Stopwatch.StartNew();

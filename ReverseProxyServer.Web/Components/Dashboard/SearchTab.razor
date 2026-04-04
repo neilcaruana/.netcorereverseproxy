@@ -4,15 +4,37 @@
 
 <div class="card shadow-sm">
     <div class="card-header bg-white py-2">
-        <div class="d-flex justify-content-between align-items-center">
-            <h6 class="mb-0 fw-semibold">
-                <i class="bi bi-search me-2"></i>Search Connection Data
-            </h6>
+        <div class="d-flex align-items-center gap-2">
+            <div class="flex-grow-1">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" class="form-control" @ref="_searchInputRef"
+                           placeholder="Search @TotalRecords.ToString("N0") records..."
+                           value="@_searchInput"
+                           @oninput="HandleSearchInput"
+                           @onkeydown="HandleKeyDown" />
+                    @if (!string.IsNullOrWhiteSpace(_searchInput))
+                    {
+                        <button class="btn btn-outline-secondary btn-sm" @onclick="ClearSearch" title="Clear">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    }
+                    <button class="btn btn-primary btn-sm" @onclick="ExecuteSearchAsync" disabled="@(_isSearching || string.IsNullOrWhiteSpace(_searchInput))">
+                        @if (_isSearching)
+                        {
+                            <span class="spinner-border spinner-border-sm"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-search"></i>
+                        }
+                    </button>
+                </div>
+            </div>
             @if (SearchResults != null)
             {
-                <div class="d-flex align-items-center gap-2">
                     <select class="form-select form-select-sm search-sort-select" value="@_sortOrder" @onchange="HandleSortChanged">
-                        <option value="Relevance"><i class="bi bi-sort-down"></i>Relevance</option>
+                        <option value="Relevance">Relevance</option>
                         <option value="Newest">Newest first</option>
                         <option value="Oldest">Oldest first</option>
                         <option value="Largest">Largest first</option>
@@ -52,38 +74,10 @@
                             </li>
                         </ul>
                     }
-                </div>
-            }
+                }
+            </div>
         </div>
-    </div>
     <div class="card-body p-3">
-        <div class="search-input-wrapper mb-3">
-            <div class="input-group">
-                <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
-                <input type="text" class="form-control"
-                       placeholder="Search connection data content..."
-                       value="@_searchInput"
-                       @oninput="HandleSearchInput"
-                       @onkeydown="HandleKeyDown" />
-                <button class="btn btn-outline-secondary @(string.IsNullOrWhiteSpace(_searchInput) ? "d-none" : "")" @onclick="ClearSearch" title="Clear">
-                    <i class="bi bi-x-lg"></i>
-                </button>
-                <button class="btn btn-primary" @onclick="ExecuteSearchAsync" disabled="@(_isSearching || string.IsNullOrWhiteSpace(_searchInput))">
-                    @if (_isSearching)
-                    {
-                        <span class="spinner-border spinner-border-sm"></span>
-                    }
-                    else
-                    {
-                        <span>Search</span>
-                    }
-                </button>
-            </div>
-            <div class="form-text mt-1">
-                <i class="bi bi-info-circle me-1"></i>Searches the raw data content across all connection sessions
-            </div>
-        </div>
-
         @if (_isSearching)
         {
             <div class="d-flex justify-content-center py-5">
@@ -101,9 +95,9 @@
         }
         else if (SearchResults == null)
         {
-            <div class="text-center py-5 text-muted">
-                <i class="bi bi-search display-4 opacity-25"></i>
-                <p class="mt-3 mb-0">Enter a search term to find matching connection data</p>
+            <div class="text-center py-4 text-muted">
+                <i class="bi bi-search display-6 opacity-25"></i>
+                <p class="mt-2 mb-0 small">Full-text search across all connection data</p>
             </div>
         }
         else
@@ -219,10 +213,13 @@
     [Parameter] public PagedResult<SearchResult>? SearchResults { get; set; }
     [Parameter] public int CurrentPage { get; set; } = 1;
     [Parameter] public string SearchTerm { get; set; } = string.Empty;
+    [Parameter] public long TotalRecords { get; set; }
     [Parameter] public EventCallback<string> OnSearch { get; set; }
     [Parameter] public EventCallback<int> OnPageChanged { get; set; }
     [Parameter] public EventCallback<SearchSortOrder> OnSortChanged { get; set; }
+    [Parameter] public bool FocusOnRender { get; set; }
 
+    private ElementReference _searchInputRef;
     private string _searchInput = string.Empty;
     private string _lastSearchTerm = string.Empty;
     private bool _isSearching;
@@ -231,6 +228,14 @@
     private PagedResult<SearchResult>? _previousResults;
     private SearchResult? _selectedResult;
     private SearchSortOrder _sortOrder = SearchSortOrder.Relevance;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (FocusOnRender)
+        {
+            try { await _searchInputRef.FocusAsync(); } catch { }
+        }
+    }
 
     protected override void OnParametersSet()
     {

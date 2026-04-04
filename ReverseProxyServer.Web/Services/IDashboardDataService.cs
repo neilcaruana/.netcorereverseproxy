@@ -31,6 +31,9 @@ public interface IDashboardDataService
     // Top connection by hits
     Task<TopConnectionInfo?> GetTopConnectionAsync(DateTime fromDate, DateTime toDate);
 
+    // Total searchable records count
+    Task<long> GetTotalConnectionDataCountAsync();
+
     // Search connection data content (searches across all data, no date filtering)
     Task<PagedResult<SearchResult>> SearchConnectionDataAsync(string searchTerm, int page, int pageSize, SearchSortOrder sortOrder = SearchSortOrder.Relevance);
 

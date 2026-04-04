@@ -68,6 +68,7 @@ public partial class Home : IAsyncDisposable
     private int _searchPage = 1;
     private string _searchTerm = string.Empty;
     private SearchSortOrder _searchSortOrder = SearchSortOrder.Relevance;
+    private long _totalSearchableRecords;
     private const int SearchPageSize = 24;
 
     // Database switcher
@@ -217,6 +218,10 @@ public partial class Home : IAsyncDisposable
             RunAsync(async () =>
             {
                 _distinctCountries = await DashboardService.GetDistinctCountriesAsync(_fromDate, _toDate);
+            }),
+            RunAsync(async () =>
+            {
+                _totalSearchableRecords = await DashboardService.GetTotalConnectionDataCountAsync();
             })
         };
 
