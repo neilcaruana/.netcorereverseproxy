@@ -62,6 +62,10 @@ public class LoggingDashboardDataService(IDashboardDataService inner, IJSRuntime
         await LogCallAsync(() => inner.GetHighlightedDataAsync(connectionDataId, searchTerm),
             result => result != null ? $"{result.Length} chars" : "no data");
 
+    public async Task<string?> GetConnectionDataRawAsync(long connectionDataId) =>
+        await LogCallAsync(() => inner.GetConnectionDataRawAsync(connectionDataId),
+            result => result != null ? $"{result.Length} chars" : "no data");
+
     private async Task<T> LogCallAsync<T>(Func<Task<T>> action, Func<T, string>? summarize = null, [CallerMemberName] string method = "")
     {
         var sw = Stopwatch.StartNew();

@@ -42,6 +42,9 @@ public interface IDashboardDataService
 
     // Get full highlighted data for expanded card
     Task<string?> GetHighlightedDataAsync(long connectionDataId, string searchTerm);
+
+    // Get raw data text for a connection data record
+    Task<string?> GetConnectionDataRawAsync(long connectionDataId);
 }
 
 public class CountryConnectionCount

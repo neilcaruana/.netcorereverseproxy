@@ -414,8 +414,8 @@ public class DashboardDataService : IDashboardDataService
         if (sortOrder == SearchSortOrder.Relevance)
         {
             sql = """
-                SELECT rowid, SessionId, Data,
-                       snippet(ConnectionsDataFts, 1, '\u00AB', '\u00BB', '\u2026', 48) AS Snippet,
+                SELECT rowid, SessionId,
+                       snippet(ConnectionsDataFts, 1, @MarkOpen, @MarkClose, @MarkEllipsis, 48) AS Snippet,
                        rank
                 FROM ConnectionsDataFts
                 WHERE ConnectionsDataFts MATCH @SearchTerm
@@ -434,8 +434,8 @@ public class DashboardDataService : IDashboardDataService
             };
 
             sql = $"""
-                SELECT fts.rowid, fts.SessionId, fts.Data,
-                       snippet(ConnectionsDataFts, 1, '\u00AB', '\u00BB', '\u2026', 48) AS Snippet,
+                SELECT fts.rowid, fts.SessionId,
+                       snippet(ConnectionsDataFts, 1, @MarkOpen, @MarkClose, @MarkEllipsis, 48) AS Snippet,
                        fts.rank
                 FROM ConnectionsDataFts fts
                 INNER JOIN ConnectionsData cd ON fts.rowid = cd.Id
@@ -450,6 +450,9 @@ public class DashboardDataService : IDashboardDataService
         cmd.Parameters.AddWithValue("@SearchTerm", ftsQuery);
         cmd.Parameters.AddWithValue("@PageSize", pageSize);
         cmd.Parameters.AddWithValue("@Offset", (page - 1) * pageSize);
+        cmd.Parameters.AddWithValue("@MarkOpen", "\u00AB");
+        cmd.Parameters.AddWithValue("@MarkClose", "\u00BB");
+        cmd.Parameters.AddWithValue("@MarkEllipsis", "\u2026");
 
         var results = new List<SearchResult>();
         using var reader = await cmd.ExecuteReaderAsync();
@@ -462,9 +465,6 @@ public class DashboardDataService : IDashboardDataService
                 SessionId = reader.IsDBNull(reader.GetOrdinal("SessionId"))
                     ? string.Empty
                     : reader.GetString(reader.GetOrdinal("SessionId")),
-                Data = reader.IsDBNull(reader.GetOrdinal("Data"))
-                    ? string.Empty
-                    : reader.GetString(reader.GetOrdinal("Data")),
                 Snippet = reader.IsDBNull(reader.GetOrdinal("Snippet"))
                     ? string.Empty
                     : reader.GetString(reader.GetOrdinal("Snippet")),
@@ -507,7 +507,7 @@ public class DashboardDataService : IDashboardDataService
         using var connection = await dataLayer.GetOpenConnection();
 
         string sql = """
-            SELECT highlight(ConnectionsDataFts, 1, '\u00AB', '\u00BB') AS Highlighted
+            SELECT highlight(ConnectionsDataFts, 1, @MarkOpen, @MarkClose) AS Highlighted
             FROM ConnectionsDataFts
             WHERE rowid = @Id AND ConnectionsDataFts MATCH @SearchTerm
             """;
@@ -515,6 +515,8 @@ public class DashboardDataService : IDashboardDataService
         using var cmd = new SqliteCommand(sql, connection);
         cmd.Parameters.AddWithValue("@Id", connectionDataId);
         cmd.Parameters.AddWithValue("@SearchTerm", EscapeFtsQuery(searchTerm));
+        cmd.Parameters.AddWithValue("@MarkOpen", "\u00AB");
+        cmd.Parameters.AddWithValue("@MarkClose", "\u00BB");
 
         using var reader = await cmd.ExecuteReaderAsync();
         if (await reader.ReadAsync())
@@ -523,6 +525,22 @@ public class DashboardDataService : IDashboardDataService
         }
 
         return null;
+    }
+
+    public async Task<string?> GetConnectionDataRawAsync(long connectionDataId)
+    {
+        var dataLayer = new SqlLiteDataLayer(DatabasePath);
+        using var connection = await dataLayer.GetOpenConnection();
+
+        string sql = """
+            SELECT Data FROM ConnectionsData WHERE Id = @Id LIMIT 1
+            """;
+
+        using var cmd = new SqliteCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@Id", connectionDataId);
+
+        var result = await cmd.ExecuteScalarAsync();
+        return result is DBNull or null ? null : (string)result;
     }
 
     public async Task<SearchResult?> GetSearchResultMetadataAsync(long connectionDataId)

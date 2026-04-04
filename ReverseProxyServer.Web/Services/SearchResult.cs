@@ -5,9 +5,11 @@ public class SearchResult
     // FTS fields (populated immediately)
     public long Id { get; init; }
     public string SessionId { get; init; } = string.Empty;
-    public string Data { get; init; } = string.Empty;
     public string Snippet { get; init; } = string.Empty;
     public double RelevanceScore { get; init; }
+
+    // Raw data (lazy-loaded on demand)
+    public string Data { get; set; } = string.Empty;
 
     // Highlighted full data (lazy-loaded on expand)
     public string? HighlightedData { get; set; }

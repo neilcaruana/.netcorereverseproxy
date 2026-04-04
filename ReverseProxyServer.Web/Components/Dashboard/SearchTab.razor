@@ -151,7 +151,7 @@
                                 }
                                 else
                                 {
-                                    <pre class="search-result-data">@result.Data</pre>
+                                    <div class="search-result-snippet text-muted fst-italic">No preview available</div>
                                 }
                             </div>
                             <div class="search-result-actions">
@@ -343,7 +343,7 @@
         if (result.HighlightedData == null && !string.IsNullOrWhiteSpace(SearchTerm))
         {
             var highlighted = await DashboardService.GetHighlightedDataAsync(result.Id, SearchTerm);
-            result.HighlightedData = highlighted ?? result.Data;
+            result.HighlightedData = highlighted ?? await DashboardService.GetConnectionDataRawAsync(result.Id) ?? string.Empty;
             await InvokeAsync(StateHasChanged);
         }
     }
@@ -375,6 +375,10 @@
 
     private async Task CopyDataAsync(SearchResult result)
     {
+        if (string.IsNullOrEmpty(result.Data))
+        {
+            result.Data = await DashboardService.GetConnectionDataRawAsync(result.Id) ?? string.Empty;
+        }
         await JS.InvokeVoidAsync("navigator.clipboard.writeText", result.Data);
         _copiedId = result.Id;
         StateHasChanged();
