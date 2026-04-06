@@ -390,22 +390,42 @@
         });
     }
 
-    private static MarkupString FormatSnippet(string snippet)
-    {
-        var escaped = System.Net.WebUtility.HtmlEncode(snippet);
-        var highlighted = escaped
-            .Replace("\u00AB", "<mark>")
-            .Replace("\u00BB", "</mark>");
-        return new MarkupString(highlighted);
-    }
+    private static MarkupString FormatSnippet(string snippet) => ConvertMarkers(snippet);
 
-    private static MarkupString FormatHighlighted(string data)
+    private static MarkupString FormatHighlighted(string data) => ConvertMarkers(data);
+
+    private static MarkupString ConvertMarkers(string text)
     {
-        var escaped = System.Net.WebUtility.HtmlEncode(data);
-        var highlighted = escaped
-            .Replace("\u00AB", "<mark>")
-            .Replace("\u00BB", "</mark>");
-        return new MarkupString(highlighted);
+        var sb = new System.Text.StringBuilder();
+        var span = text.AsSpan();
+
+        while (span.Length > 0)
+        {
+            var openIdx = span.IndexOf('\u00AB');
+            if (openIdx < 0)
+            {
+                sb.Append(System.Net.WebUtility.HtmlEncode(span.ToString()));
+                break;
+            }
+
+            sb.Append(System.Net.WebUtility.HtmlEncode(span[..openIdx].ToString()));
+
+            var afterOpen = span[(openIdx + 1)..];
+            var closeIdx = afterOpen.IndexOf('\u00BB');
+            if (closeIdx < 0)
+            {
+                sb.Append(System.Net.WebUtility.HtmlEncode(afterOpen.ToString()));
+                break;
+            }
+
+            sb.Append("<mark>");
+            sb.Append(System.Net.WebUtility.HtmlEncode(afterOpen[..closeIdx].ToString()));
+            sb.Append("</mark>");
+
+            span = afterOpen[(closeIdx + 1)..];
+        }
+
+        return new MarkupString(sb.ToString());
     }
 
     private static string FormatSize(long bytes) => bytes switch
