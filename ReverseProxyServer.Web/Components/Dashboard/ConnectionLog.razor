@@ -519,7 +519,6 @@
     private int _countryPickerY;
     private string _countrySearch = string.Empty;
     private ElementReference _countryPickerRef;
-    private CancellationTokenSource? _typeAheadCts;
 
     private IEnumerable<CountryInfo> FilteredCountries => string.IsNullOrWhiteSpace(_countrySearch)
         ? DistinctCountries
@@ -672,23 +671,10 @@
             await SelectCountry(match?.CountryCode ?? string.Empty);
             return;
         }
-        if (e.Key == "Backspace") { if (_countrySearch.Length > 0) _countrySearch = _countrySearch[..^1]; ResetTypeAheadTimer(); return; }
+        if (e.Key == "Backspace") { if (_countrySearch.Length > 0) _countrySearch = _countrySearch[..^1]; return; }
         if (e.Key.Length != 1) return;
 
         _countrySearch += e.Key;
-        ResetTypeAheadTimer();
-    }
-
-    private void ResetTypeAheadTimer()
-    {
-        _typeAheadCts?.Cancel();
-        _typeAheadCts = new CancellationTokenSource();
-        var token = _typeAheadCts.Token;
-        _ = Task.Delay(1000, token).ContinueWith(_ =>
-        {
-            _countrySearch = string.Empty;
-            InvokeAsync(StateHasChanged);
-        }, TaskContinuationOptions.OnlyOnRanToCompletion);
     }
 
     private async Task SelectCountry(string countryCode)
