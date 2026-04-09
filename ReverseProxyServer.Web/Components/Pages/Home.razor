@@ -128,9 +128,13 @@
                SearchTerm="@_searchTerm"
                TotalRecords="_totalSearchableRecords"
                FocusOnRender="true"
+               UseDateRange="_searchUseDateRange"
+               FromDate="_fromDate"
+               ToDate="_toDate"
                OnSearch="HandleSearchAsync"
                OnPageChanged="HandleSearchPageChanged"
-               OnSortChanged="HandleSearchSortChanged" />
+               OnSortChanged="HandleSearchSortChanged"
+               OnDateRangeToggled="HandleSearchDateRangeToggled" />
 }
 
 @if (_activeTab == "about")

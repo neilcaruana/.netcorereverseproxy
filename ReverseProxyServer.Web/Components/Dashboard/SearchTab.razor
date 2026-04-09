@@ -31,6 +31,11 @@
                     </button>
                 </div>
             </div>
+            <button class="btn btn-sm @(UseDateRange ? "btn-warning" : "btn-outline-secondary") text-nowrap"
+                    @onclick="ToggleDateRange"
+                    title="@(UseDateRange ? $"Filtering: {FromDate:yyyy-MM-dd} to {ToDate:yyyy-MM-dd}" : "Search all dates")">
+                <i class="bi bi-calendar-range"></i>
+            </button>
             @if (SearchResults != null)
             {
                     <select class="form-select form-select-sm search-sort-select" value="@_sortOrder" @onchange="HandleSortChanged">
@@ -218,6 +223,10 @@
     [Parameter] public EventCallback<int> OnPageChanged { get; set; }
     [Parameter] public EventCallback<SearchSortOrder> OnSortChanged { get; set; }
     [Parameter] public bool FocusOnRender { get; set; }
+    [Parameter] public bool UseDateRange { get; set; }
+    [Parameter] public DateTime FromDate { get; set; }
+    [Parameter] public DateTime ToDate { get; set; }
+    [Parameter] public EventCallback<bool> OnDateRangeToggled { get; set; }
 
     private ElementReference _searchInputRef;
     private string _searchInput = string.Empty;
@@ -365,6 +374,28 @@
             try
             {
                 await OnSortChanged.InvokeAsync(_sortOrder);
+            }
+            finally
+            {
+                _isSearching = false;
+            }
+        }
+    }
+
+    private async Task ToggleDateRange()
+    {
+        var newValue = !UseDateRange;
+        await OnDateRangeToggled.InvokeAsync(newValue);
+
+        if (_hasSearched && !string.IsNullOrWhiteSpace(_lastSearchTerm))
+        {
+            _isSearching = true;
+            StateHasChanged();
+            await Task.Delay(1);
+
+            try
+            {
+                await OnSearch.InvokeAsync(_lastSearchTerm);
             }
             finally
             {

@@ -393,25 +393,46 @@ public class DashboardDataService : IDashboardDataService
         return await repo.CountAsync(string.Empty);
     }
 
-    public async Task<PagedResult<SearchResult>> SearchConnectionDataAsync(string searchTerm, int page, int pageSize, SearchSortOrder sortOrder = SearchSortOrder.Relevance)
+    public async Task<PagedResult<SearchResult>> SearchConnectionDataAsync(string searchTerm, int page, int pageSize, SearchSortOrder sortOrder = SearchSortOrder.Relevance, DateTime? fromDate = null, DateTime? toDate = null)
     {
         var sw = Stopwatch.StartNew();
         var dataLayer = new SqlLiteDataLayer(DatabasePath);
         using var connection = await dataLayer.GetOpenConnection();
         var ftsQuery = EscapeFtsQuery(searchTerm);
+        var hasDateFilter = fromDate.HasValue && toDate.HasValue;
 
-        string countSql = """
-            SELECT COUNT(*)
-            FROM ConnectionsDataFts
-            WHERE ConnectionsDataFts MATCH @SearchTerm
-            """;
+        string countSql;
+        if (hasDateFilter)
+        {
+            countSql = """
+                SELECT COUNT(*)
+                FROM ConnectionsDataFts fts
+                INNER JOIN ConnectionsData cd ON fts.rowid = cd.Id
+                INNER JOIN Connections c ON cd.SessionId = c.SessionId
+                WHERE ConnectionsDataFts MATCH @SearchTerm
+                  AND c.ConnectionTime BETWEEN @FromDate AND @ToDate
+                """;
+        }
+        else
+        {
+            countSql = """
+                SELECT COUNT(*)
+                FROM ConnectionsDataFts
+                WHERE ConnectionsDataFts MATCH @SearchTerm
+                """;
+        }
 
         using var countCmd = new SqliteCommand(countSql, connection);
         countCmd.Parameters.AddWithValue("@SearchTerm", ftsQuery);
+        if (hasDateFilter)
+        {
+            countCmd.Parameters.AddWithValue("@FromDate", fromDate!.Value.ToString("yyyy-MM-dd HH:mm:ss"));
+            countCmd.Parameters.AddWithValue("@ToDate", toDate!.Value.ToString("yyyy-MM-dd HH:mm:ss"));
+        }
         int totalCount = Convert.ToInt32(await countCmd.ExecuteScalarAsync());
 
         string sql;
-        if (sortOrder == SearchSortOrder.Relevance)
+        if (!hasDateFilter && sortOrder == SearchSortOrder.Relevance)
         {
             sql = """
                 SELECT rowid, SessionId,
@@ -433,6 +454,8 @@ public class DashboardDataService : IDashboardDataService
                 _ => "fts.rank"
             };
 
+            var dateClause = hasDateFilter ? "AND c.ConnectionTime BETWEEN @FromDate AND @ToDate" : string.Empty;
+
             sql = $"""
                 SELECT fts.rowid, fts.SessionId,
                        snippet(ConnectionsDataFts, 1, @MarkOpen, @MarkClose, @MarkEllipsis, 48) AS Snippet,
@@ -441,6 +464,7 @@ public class DashboardDataService : IDashboardDataService
                 INNER JOIN ConnectionsData cd ON fts.rowid = cd.Id
                 INNER JOIN Connections c ON cd.SessionId = c.SessionId
                 WHERE ConnectionsDataFts MATCH @SearchTerm
+                  {dateClause}
                 ORDER BY {orderBy}
                 LIMIT @PageSize OFFSET @Offset
                 """;
@@ -453,6 +477,11 @@ public class DashboardDataService : IDashboardDataService
         cmd.Parameters.AddWithValue("@MarkOpen", "\u00AB");
         cmd.Parameters.AddWithValue("@MarkClose", "\u00BB");
         cmd.Parameters.AddWithValue("@MarkEllipsis", "\u2026");
+        if (hasDateFilter)
+        {
+            cmd.Parameters.AddWithValue("@FromDate", fromDate!.Value.ToString("yyyy-MM-dd HH:mm:ss"));
+            cmd.Parameters.AddWithValue("@ToDate", toDate!.Value.ToString("yyyy-MM-dd HH:mm:ss"));
+        }
 
         var results = new List<SearchResult>();
         using var reader = await cmd.ExecuteReaderAsync();

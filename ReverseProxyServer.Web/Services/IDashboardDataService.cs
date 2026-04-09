@@ -34,8 +34,8 @@ public interface IDashboardDataService
     // Total searchable records count
     Task<long> GetTotalConnectionDataCountAsync();
 
-    // Search connection data content (searches across all data, no date filtering)
-    Task<PagedResult<SearchResult>> SearchConnectionDataAsync(string searchTerm, int page, int pageSize, SearchSortOrder sortOrder = SearchSortOrder.Relevance);
+    // Search connection data content (optionally filtered by date range)
+    Task<PagedResult<SearchResult>> SearchConnectionDataAsync(string searchTerm, int page, int pageSize, SearchSortOrder sortOrder = SearchSortOrder.Relevance, DateTime? fromDate = null, DateTime? toDate = null);
 
     // Lazy-load metadata for a single search result card
     Task<SearchResult?> GetSearchResultMetadataAsync(long connectionDataId);

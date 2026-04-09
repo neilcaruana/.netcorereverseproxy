@@ -69,6 +69,7 @@ public partial class Home : IAsyncDisposable
     private string _searchTerm = string.Empty;
     private SearchSortOrder _searchSortOrder = SearchSortOrder.Relevance;
     private long _totalSearchableRecords;
+    private bool _searchUseDateRange;
     private const int SearchPageSize = 24;
 
     // Database switcher
@@ -341,11 +342,18 @@ public partial class Home : IAsyncDisposable
         await UpdateUrlAsync();
     }
 
+    private void HandleSearchDateRangeToggled(bool useRange)
+    {
+        _searchUseDateRange = useRange;
+    }
+
     private async Task LoadSearchResultsAsync()
     {
         try
         {
-            _searchResults = await DashboardService.SearchConnectionDataAsync(_searchTerm, _searchPage, SearchPageSize, _searchSortOrder);
+            var fromDate = _searchUseDateRange ? _fromDate : (DateTime?)null;
+            var toDate = _searchUseDateRange ? _toDate : (DateTime?)null;
+            _searchResults = await DashboardService.SearchConnectionDataAsync(_searchTerm, _searchPage, SearchPageSize, _searchSortOrder, fromDate, toDate);
         }
         catch (Exception ex)
         {
