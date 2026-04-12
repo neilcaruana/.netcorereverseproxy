@@ -28,7 +28,8 @@
 
     <!-- Top Connection -->
     <div class="col-12 col-md-6 col-xl">
-        <div class="stat-card stat-card-secondary">
+        <div class="stat-card stat-card-secondary @(TopConnection != null ? "stat-card-clickable" : "")"
+             @onclick="HandleTopConnectionClick" role="@(TopConnection != null ? "button" : "")">
             <div class="stat-card-body">
                 <div class="stat-icon"><i class="bi bi-trophy"></i></div>
                 <div class="stat-content">
@@ -151,6 +152,13 @@
     [Parameter] public TopConnectionInfo? TopConnection { get; set; }
     [Parameter] public BandwidthStats? BandwidthStats { get; set; }
     [Parameter] public bool IsLoading { get; set; }
+    [Parameter] public EventCallback<string> OnTopConnectionClicked { get; set; }
+
+    private async Task HandleTopConnectionClick()
+    {
+        if (TopConnection != null)
+            await OnTopConnectionClicked.InvokeAsync(TopConnection.IPAddress);
+    }
 
     private static string FormatNumber(long number) => number switch
     {

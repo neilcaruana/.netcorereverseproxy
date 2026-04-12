@@ -299,6 +299,14 @@ main {
     box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
 }
 
+.stat-card-clickable {
+    cursor: pointer;
+}
+
+.stat-card-clickable:hover {
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.18);
+}
+
 .stat-card-body {
     padding: 0.5rem 0.65rem;
     display: flex;

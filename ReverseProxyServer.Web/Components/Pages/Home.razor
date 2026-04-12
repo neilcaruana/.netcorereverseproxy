@@ -93,7 +93,8 @@
               BlacklistedIPs="_blacklistedIPs"
               TopConnection="_topConnection"
               BandwidthStats="_bandwidthStats"
-              IsLoading="_isLoading" />
+              IsLoading="_isLoading"
+              OnTopConnectionClicked="FilterByIPAsync" />
 
     <ConnectionLog @ref="_connectionLogRef"
                    PagedConnections="_pagedConnections"
@@ -118,8 +119,10 @@
 <WorldViewTab Visible="@(_activeTab == "worldview")"
               IsLoading="_isLoadingWorldView"
               DarkStyle="_darkMapStyle"
+              RealtimeEnabled="_realtimeWorldView"
               CountryCounts="_countryCounts"
-              OnToggleStyle="ToggleMapStyleAsync" />
+              OnToggleStyle="ToggleMapStyleAsync"
+              OnToggleRealtime="ToggleRealtimeWorldViewAsync" />
 
 @if (_activeTab == "search")
 {
@@ -142,28 +145,42 @@
     <AboutTab />
 }
 
-<!-- Database Switcher (Ctrl+Shift+D) -->
+<!-- Debug Panel (Ctrl+Shift+D) -->
 @if (_showDbSwitcher)
 {
     <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,0.5);" @onclick="() => _showDbSwitcher = false">
         <div class="modal-dialog modal-dialog-centered" @onclick:stopPropagation="true">
             <div class="modal-content">
                 <div class="modal-header py-2">
-                    <h6 class="modal-title mb-0"><i class="bi bi-database me-2"></i>Switch Database</h6>
+                    <h6 class="modal-title mb-0"><i class="bi bi-gear me-2"></i>Debug Panel</h6>
                     <button type="button" class="btn-close" @onclick="() => _showDbSwitcher = false"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="d-grid gap-2">
-                        <button class="btn @(_activeDb == "Release" ? "btn-primary" : "btn-outline-secondary") text-start"
-                                @onclick='() => SwitchDatabaseAsync("Release")'>
-                            <i class="bi bi-box-seam me-2"></i>Release
-                            <br /><small class="text-opacity-75" style="font-size:0.65rem;">@DatabaseSettings.CurrentValue.ReleasePath</small>
-                        </button>
-                        <button class="btn @(_activeDb == "Debug" ? "btn-primary" : "btn-outline-secondary") text-start"
-                                @onclick='() => SwitchDatabaseAsync("Debug")'>
-                            <i class="bi bi-bug me-2"></i>Debug
-                            <br /><small class="text-opacity-75" style="font-size:0.65rem;">@DatabaseSettings.CurrentValue.DebugPath</small>
-                        </button>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small mb-1"><i class="bi bi-database me-1"></i>Database</label>
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-sm @(_activeDb == "Release" ? "btn-primary" : "btn-outline-secondary") text-start"
+                                    @onclick='() => SwitchDatabaseAsync("Release")'>
+                                <i class="bi bi-box-seam me-2"></i>Release
+                                <br /><small class="text-opacity-75" style="font-size:0.65rem;">@DatabaseSettings.CurrentValue.ReleasePath</small>
+                            </button>
+                            <button class="btn btn-sm @(_activeDb == "Debug" ? "btn-primary" : "btn-outline-secondary") text-start"
+                                    @onclick='() => SwitchDatabaseAsync("Debug")'>
+                                <i class="bi bi-bug me-2"></i>Debug
+                                <br /><small class="text-opacity-75" style="font-size:0.65rem;">@DatabaseSettings.CurrentValue.DebugPath</small>
+                            </button>
+                        </div>
+                    </div>
+                    <hr class="my-2" />
+                    <div class="mb-1">
+                        <label class="form-label fw-semibold small mb-1"><i class="bi bi-list-ol me-1"></i>Connection Log Page Size</label>
+                        <div class="d-flex align-items-center gap-2">
+                            @foreach (var size in new[] { 25, 50, 100, 200 })
+                            {
+                                <button class="btn btn-sm @(_pageSize == size ? "btn-primary" : "btn-outline-secondary")"
+                                        @onclick="() => ChangePageSizeAsync(size)">@size</button>
+                            }
+                        </div>
                     </div>
                 </div>
             </div>

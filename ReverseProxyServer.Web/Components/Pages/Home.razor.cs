@@ -17,6 +17,7 @@ public partial class Home : IAsyncDisposable
     [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private IOptionsMonitor<DatabaseSettings> DatabaseSettings { get; set; } = default!;
+    [Inject] private IConfiguration Configuration { get; set; } = default!;
 
     // Tab state
     private string _activeTab = "statistics";
@@ -42,7 +43,7 @@ public partial class Home : IAsyncDisposable
     // Connections
     private PagedResult<Data.DTO.Connection>? _pagedConnections;
     private int _currentPage = 1;
-    private const int PageSize = 25;
+    private int _pageSize = 50;
     private ConnectionFilter _filter = new();
     private ConnectionLog? _connectionLogRef;
     private List<CountryInfo> _distinctCountries = [];
@@ -59,6 +60,7 @@ public partial class Home : IAsyncDisposable
     private bool _isLoadingWorldView;
     private bool _mapInitialized;
     private bool _darkMapStyle = true;
+    private bool _realtimeWorldView;
     private const string MapElementId = "world-map";
     private const string MapId = "eb64f89d349abcdbea900459";
     private const string DatasetId = "3695db17-21fc-48d4-94ea-bdc7218fe18b";
@@ -136,6 +138,16 @@ public partial class Home : IAsyncDisposable
         await UpdateUrlAsync();
     }
 
+    private async Task FilterByIPAsync(string ipAddress)
+    {
+        _filter = new ConnectionFilter { RemoteAddress = ipAddress };
+        _currentPage = 1;
+        _connectionLogRef?.ClearExpandedSessions();
+        StateHasChanged();
+        await LoadConnectionsPageAsync();
+        await UpdateUrlAsync();
+    }
+
     private async Task SwitchDatabaseAsync(string target)
     {
         var settings = DatabaseSettings.CurrentValue;
@@ -151,6 +163,15 @@ public partial class Home : IAsyncDisposable
         _activeDb = target;
         _showDbSwitcher = false;
         await LoadAllDataAsync();
+    }
+
+    private async Task ChangePageSizeAsync(int size)
+    {
+        if (_pageSize == size) return;
+        _pageSize = size;
+        _currentPage = 1;
+        _connectionLogRef?.ClearExpandedSessions();
+        await LoadConnectionsPageAsync();
     }
 
     // --- Data Loading ---
@@ -212,7 +233,7 @@ public partial class Home : IAsyncDisposable
             }),
             RunAsync(async () =>
             {
-                _pagedConnections = await DashboardService.GetConnectionsPagedAsync(_fromDate, _toDate, _currentPage, PageSize, _filter);
+                _pagedConnections = await DashboardService.GetConnectionsPagedAsync(_fromDate, _toDate, _currentPage, _pageSize, _filter);
                 _isLoadingConnections = false;
                 await InvokeAsync(StateHasChanged);
             }),
@@ -255,7 +276,7 @@ public partial class Home : IAsyncDisposable
 
         try
         {
-            _pagedConnections = await Task.Run(() => DashboardService.GetConnectionsPagedAsync(_fromDate, _toDate, _currentPage, PageSize, _filter));
+            _pagedConnections = await Task.Run(() => DashboardService.GetConnectionsPagedAsync(_fromDate, _toDate, _currentPage, _pageSize, _filter));
         }
         catch (Exception ex)
         {
@@ -434,6 +455,9 @@ public partial class Home : IAsyncDisposable
 
                 if (_autoScroll)
                     await InvokeAsync(StateHasChanged);
+
+                if (_realtimeWorldView)
+                    await TryPulseForConnectionAsync(logEvent.Message);
             });
 
             _hubConnection.Reconnected += _ => { _hubConnected = true; return InvokeAsync(StateHasChanged); };
@@ -547,6 +571,51 @@ public partial class Home : IAsyncDisposable
             _isLoadingWorldView = false;
             StateHasChanged();
         }
+    }
+
+    private async Task ToggleRealtimeWorldViewAsync(bool enabled)
+    {
+        _realtimeWorldView = enabled;
+
+        try
+        {
+            if (enabled)
+            {
+                var serverCountry = Configuration["ServerLocation:CountryCode"] ?? "MT";
+                await JS.InvokeVoidAsync("worldMap.startRealtime", serverCountry);
+            }
+            else
+            {
+                await JS.InvokeVoidAsync("worldMap.stopRealtime");
+            }
+        }
+        catch { }
+    }
+
+    private async Task TryPulseForConnectionAsync(string message)
+    {
+        try
+        {
+            // Log format: "Connection received from [CountryName] IP:Port..."
+            const string prefix = "Connection received from [";
+            var idx = message.IndexOf(prefix, StringComparison.Ordinal);
+            if (idx < 0) return;
+
+            var start = idx + prefix.Length;
+            var end = message.IndexOf(']', start);
+            if (end <= start) return;
+
+            var countryName = message[start..end];
+            if (string.IsNullOrWhiteSpace(countryName) || _countryCounts == null) return;
+
+            var match = _countryCounts.FirstOrDefault(c =>
+                c.CountryName.Equals(countryName, StringComparison.OrdinalIgnoreCase));
+            if (match == null || string.IsNullOrWhiteSpace(match.CountryCode)) return;
+
+            await InvokeAsync(async () =>
+                await JS.InvokeVoidAsync("worldMap.addPulse", match.CountryCode));
+        }
+        catch { }
     }
 
     // --- Helpers ---
