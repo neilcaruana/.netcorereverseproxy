@@ -85,6 +85,73 @@ html, body {
     background-image: linear-gradient(to top, rgba(108, 117, 125, 0.08) 0%, transparent 60%);
 }
 
+/* Connection data expanded row */
+.connection-data-pre pre {
+    max-height: 120px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    font-size: 0.75rem;
+    white-space: pre-wrap;
+    word-break: break-all;
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+}
+
+.connection-data-pre:hover pre {
+    scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+
+.connection-data-pre pre::-webkit-scrollbar {
+    width: 6px;
+    background: transparent;
+}
+
+.connection-data-pre pre::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.connection-data-pre pre::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 3px;
+}
+
+.connection-data-pre:hover pre::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+.connection-data-pre:hover pre::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.4);
+}
+
+.connection-data-pre .btn {
+    transition: right 0.15s ease;
+}
+
+.connection-data-pre:hover .btn {
+    right: 10px !important;
+}
+
+/* Scroll to top button */
+.btn-scroll-top {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 1050;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.btn-scroll-top:hover {
+    transform: translateY(-2px);
+}
+
 /* Search tab */
 .search-result-card {
     border: 1px solid #e9ecef;

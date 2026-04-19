@@ -97,6 +97,14 @@ public partial class Home : IAsyncDisposable
                     document.addEventListener('keydown', window.__dbSwitcherHandler);
                 }
                 window.__setDbSwitcherRef = (ref) => { window.__dbSwitcherRef = ref; };
+                if (!window.__scrollTopHandler) {
+                    window.__scrollTopHandler = () => {
+                        const btn = document.getElementById('scrollTopBtn');
+                        if (btn) btn.style.opacity = window.scrollY > 200 ? '1' : '0';
+                        if (btn) btn.style.pointerEvents = window.scrollY > 200 ? 'auto' : 'none';
+                    };
+                    window.addEventListener('scroll', window.__scrollTopHandler, { passive: true });
+                }
                 """);
             await JS.InvokeVoidAsync("__setDbSwitcherRef", _dotNetRef);
             ReadStateFromUrl();

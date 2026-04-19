@@ -278,7 +278,16 @@
                                                                 <small class="text-muted">Local → Remote</small>
                                                             }
                                                         </div>
-                                                        <pre class="bg-dark text-light p-2 rounded mb-0" style="max-height: 120px; overflow: auto; font-size: 0.75rem;">@data.Data</pre>
+                                                        <div class="connection-data-pre bg-dark rounded position-relative">
+                                                            <pre class="text-light p-2 mb-0">@data.Data</pre>
+                                                            <button class="btn btn-sm position-absolute @(_copiedDataId == data.Id ? "btn-success" : "btn-outline-light opacity-50")"
+                                                                    style="top: 4px; right: 4px; padding: 0.15rem 0.35rem; font-size: 0.6rem; z-index: 1;"
+                                                                    @onclick:stopPropagation="true"
+                                                                    @onclick="() => CopyDataAsync(data)"
+                                                                    title="Copy to clipboard">
+                                                                <i class="bi @(_copiedDataId == data.Id ? "bi-check-lg" : "bi-clipboard")"></i>
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 }
                                             }
@@ -505,6 +514,7 @@
     private Dictionary<string, List<ConnectionData>?> _expandedSessions = new();
     private string? _loadingSessionId;
     private bool _isExpandingAll;
+    private long? _copiedDataId;
 
     // Popup state
     private int _popoverX;
@@ -696,4 +706,17 @@
         >= 25 => "bg-info text-dark",
         _ => "bg-success"
     };
+
+    private async Task CopyDataAsync(ConnectionData data)
+    {
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", data.Data);
+        _copiedDataId = data.Id;
+        StateHasChanged();
+
+        _ = Task.Delay(2000).ContinueWith(_ =>
+        {
+            _copiedDataId = null;
+            InvokeAsync(StateHasChanged);
+        });
+    }
 }
