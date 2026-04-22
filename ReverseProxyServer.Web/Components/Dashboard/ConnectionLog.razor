@@ -88,7 +88,8 @@
         }
         else if (PagedConnections?.Items.Any() == true)
         {
-            <div class="table-responsive @(IsLoading ? "opacity-50" : "")" style="transition: opacity 0.2s ease;">
+            <div class="table-responsive @(IsLoading ? "opacity-50" : "")" style="transition: opacity 0.2s ease; outline: none;"
+                 tabindex="0" @ref="_tableRef" @onkeydown="OnTableKeyDown" @onkeydown:preventDefault>
                 <table class="table table-hover mb-0 align-middle">
                     <thead class="table-light">
                         <tr>
@@ -199,7 +200,7 @@
                             var ipAnchor = "ip-" + rid;
                             var rpAnchor = "rp-" + rid;
                             var lpAnchor = "lp-" + rid;
-                            <tr class="@(isExpanded ? "table-active" : "")" @onclick="() => ToggleRowExpand(conn.SessionId)" style="cursor: pointer;">
+                            <tr data-row-index="@rid" class="@(isExpanded ? "table-active" : "") @(rid == _selectedRowIndex ? "table-primary" : "")" @onclick="() => SelectAndToggle(rid, conn.SessionId)" style="cursor: pointer;">
                                 <td class="text-center">
                                     @if (_loadingSessionId == conn.SessionId)
                                     {
@@ -515,6 +516,18 @@
     private string? _loadingSessionId;
     private bool _isExpandingAll;
     private long? _copiedDataId;
+    private int _selectedRowIndex = -1;
+    private ElementReference _tableRef;
+    private bool _needsFocus = true;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_needsFocus && PagedConnections?.Items.Any() == true)
+        {
+            _needsFocus = false;
+            try { await _tableRef.FocusAsync(); } catch { }
+        }
+    }
 
     // Popup state
     private int _popoverX;
@@ -596,6 +609,69 @@
             _loadingSessionId = null;
             StateHasChanged();
         }
+    }
+
+    private void SelectAndToggle(int rowIndex, string? sessionId)
+    {
+        _selectedRowIndex = rowIndex;
+        _ = ToggleRowExpand(sessionId);
+    }
+
+    private async Task OnTableKeyDown(KeyboardEventArgs e)
+    {
+        if (PagedConnections == null || PagedConnections.Items.Count == 0) return;
+        var count = PagedConnections.Items.Count;
+
+        switch (e.Key)
+        {
+            case "ArrowDown":
+                _selectedRowIndex = _selectedRowIndex < count ? _selectedRowIndex + 1 : count;
+                break;
+            case "ArrowUp":
+                _selectedRowIndex = _selectedRowIndex > 1 ? _selectedRowIndex - 1 : 1;
+                break;
+            case "PageDown":
+                _selectedRowIndex = Math.Min(_selectedRowIndex + 10, count);
+                break;
+            case "PageUp":
+                _selectedRowIndex = Math.Max(_selectedRowIndex - 10, 1);
+                break;
+            case "ArrowRight":
+                if (PagedConnections.HasNextPage)
+                {
+                    _selectedRowIndex = 1;
+                    await OnPageChanged.InvokeAsync(CurrentPage + 1);
+                }
+                break;
+            case "ArrowLeft":
+                if (PagedConnections.HasPreviousPage)
+                {
+                    _selectedRowIndex = 1;
+                    await OnPageChanged.InvokeAsync(CurrentPage - 1);
+                }
+                break;
+            case "Enter":
+                if (_selectedRowIndex >= 1 && _selectedRowIndex <= count)
+                {
+                    var conn = PagedConnections.Items[_selectedRowIndex - 1];
+                    await ToggleRowExpand(conn.SessionId);
+                }
+                break;
+            default:
+                return;
+        }
+
+        await ScrollSelectedRowIntoViewAsync();
+    }
+
+    private async Task ScrollSelectedRowIntoViewAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("eval",
+                $"document.querySelector('tr[data-row-index=\"{_selectedRowIndex}\"]')?.scrollIntoView({{block:'nearest',behavior:'smooth'}})");
+        }
+        catch { }
     }
 
     private async Task ExpandAll()
@@ -709,7 +785,8 @@
 
     private async Task CopyDataAsync(ConnectionData data)
     {
-        await JS.InvokeVoidAsync("navigator.clipboard.writeText", data.Data);
+        var rawData = await DashboardService.GetConnectionDataRawAsync(data.Id) ?? data.Data;
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", rawData);
         _copiedDataId = data.Id;
         StateHasChanged();
 

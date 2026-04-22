@@ -628,6 +628,24 @@ public partial class Home : IAsyncDisposable
 
     // --- Helpers ---
 
+    private string GetDatabaseSize()
+    {
+        try
+        {
+            var path = DatabaseSettings.CurrentValue.Path;
+            if (string.IsNullOrEmpty(path) || !File.Exists(path)) return "—";
+            var bytes = new FileInfo(path).Length;
+            return bytes switch
+            {
+                >= 1_073_741_824 => $"{bytes / 1_073_741_824.0:F2} GB",
+                >= 1_048_576 => $"{bytes / 1_048_576.0:F1} MB",
+                >= 1_024 => $"{bytes / 1_024.0:F1} KB",
+                _ => $"{bytes} B"
+            };
+        }
+        catch { return "—"; }
+    }
+
     private async Task LogToConsoleAsync(string message, bool isError = false)
     {
         try
