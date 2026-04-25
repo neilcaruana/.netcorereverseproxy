@@ -525,7 +525,12 @@
         if (_needsFocus && PagedConnections?.Items.Any() == true)
         {
             _needsFocus = false;
-            try { await _tableRef.FocusAsync(); } catch { }
+            try
+            {
+                await JS.InvokeVoidAsync("eval",
+                    "document.querySelector('[data-row-index]')?.closest('.table-responsive')?.focus({preventScroll:true})");
+            }
+            catch { }
         }
     }
 
@@ -668,8 +673,15 @@
     {
         try
         {
-            await JS.InvokeVoidAsync("eval",
-                $"document.querySelector('tr[data-row-index=\"{_selectedRowIndex}\"]')?.scrollIntoView({{block:'nearest',behavior:'smooth'}})");
+            if (_selectedRowIndex <= 1)
+            {
+                await JS.InvokeVoidAsync("eval", "window.scrollTo({top:0,behavior:'smooth'})");
+            }
+            else
+            {
+                await JS.InvokeVoidAsync("eval",
+                    $"document.querySelector('tr[data-row-index=\"{_selectedRowIndex}\"]')?.scrollIntoView({{block:'nearest',behavior:'smooth'}})");
+            }
         }
         catch { }
     }
